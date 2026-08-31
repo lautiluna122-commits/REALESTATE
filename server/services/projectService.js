@@ -87,6 +87,27 @@ export function getProjectBySlug(slug, companyId = null) {
   return row ? normalizeProject(row) : null;
 }
 
+export function getPublishedProjectByPublicSlug(publicSlug) {
+  const row = db.prepare(
+    `SELECT p.* FROM projects p
+     INNER JOIN project_publications pub ON pub.projectId = p.id
+     WHERE pub.publicSlug = ? AND pub.isPublished = 1 AND p.status = ?
+     LIMIT 1`,
+  ).get(publicSlug, 'PUBLISHED');
+  
+  if (!row) return null;
+
+  const publication = db.prepare('SELECT * FROM project_publications WHERE projectId = ?').get(row.id);
+  return {
+    project: normalizeProject(row),
+    publication: publication ? {
+      ...publication,
+      isPublished: Boolean(publication.isPublished),
+      isPrimary: publication.isPrimary ? Boolean(publication.isPrimary) : undefined,
+    } : null,
+  };
+}
+
 export function listPublicProjects() {
   return db.prepare(
     'SELECT p.* FROM projects p INNER JOIN project_publications pub ON pub.projectId = p.id WHERE p.status = ? AND pub.isPublished = 1 ORDER BY p.createdAt DESC',
@@ -104,10 +125,24 @@ export function createBuilding({ projectId, name, reference = '', metadata = nul
 }
 
 export function listProjectBuildings(projectId) {
-  return db.prepare('SELECT * FROM buildings WHERE projectId = ? ORDER BY createdAt ASC').all();
+  if (!projectId) throw new Error('projectId is required');
+  return db.prepare('SELECT * FROM buildings WHERE projectId = ? ORDER BY createdAt ASC').all(projectId);
 }
 
 export function createFloor({ projectId, buildingId, number, name = '', metadata = null }) {
+  if (!projectId || !buildingId) throw new Error('projectId and buildingId are required');
+  
+  // Verify project exists
+  const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId);
+  if (!project) throw new Error('Project not found');
+  
+  // Verify building exists AND belongs to the project
+  const building = db.prepare('SELECT projectId FROM buildings WHERE id = ?').get(buildingId);
+  if (!building) throw new Error('Building not found');
+  if (building.projectId !== projectId) {
+    throw new Error('Building does not belong to this project');
+  }
+
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   db.prepare(
@@ -125,6 +160,31 @@ export function listProjectFloors(projectId, buildingId = null) {
 }
 
 export function createUnit({ projectId, buildingId, floorId, number, surface, bedrooms, bathrooms, terrace, price, currency = 'USD', status = 'AVAILABLE', description = '', planId = null, modelReference = '', images = [] }) {
+  if (!projectId || !buildingId || !floorId) {
+    throw new Error('projectId, buildingId, and floorId are required');
+  }
+
+  // Verify project exists
+  const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId);
+  if (!project) throw new Error('Project not found');
+
+  // Verify building exists AND belongs to the project
+  const building = db.prepare('SELECT projectId FROM buildings WHERE id = ?').get(buildingId);
+  if (!building) throw new Error('Building not found');
+  if (building.projectId !== projectId) {
+    throw new Error('Building does not belong to this project');
+  }
+
+  // Verify floor exists, belongs to the building, AND belongs to the project
+  const floor = db.prepare('SELECT projectId, buildingId FROM floors WHERE id = ?').get(floorId);
+  if (!floor) throw new Error('Floor not found');
+  if (floor.buildingId !== buildingId) {
+    throw new Error('Floor does not belong to this building');
+  }
+  if (floor.projectId !== projectId) {
+    throw new Error('Floor does not belong to this project');
+  }
+
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   db.prepare(
@@ -179,20 +239,33 @@ export function getUnitById(projectId, unitId) {
   return row ? normalizeUnit(row) : null;
 }
 
-export function updateUnit(unitId, updates) {
-  const current = db.prepare('SELECT * FROM units WHERE id = ?').get(unitId);
+export function updateUnit(projectId, unitId, updates) {
+  if (!projectId || !unitId) {
+    throw new Error('projectId and unitId are required');
+  }
+
+  const current = db.prepare('SELECT * FROM units WHERE id = ? AND projectId = ?').get(unitId, projectId);
   if (!current) return null;
+
+  // Immutable fields - cannot be changed
+  const immutableFields = ['projectId', 'buildingId', 'floorId'];
+  const attemptedMutation = immutableFields.filter((field) => updates.hasOwnProperty(field) && updates[field] !== current[field]);
+  
+  if (attemptedMutation.length > 0) {
+    throw new Error(`Cannot modify immutable fields: ${attemptedMutation.join(', ')}`);
+  }
 
   const next = {
     ...normalizeUnit(current),
     ...updates,
+    // Force immutability
+    projectId: current.projectId,
+    buildingId: current.buildingId,
+    floorId: current.floorId,
   };
 
   db.prepare(
     `UPDATE units SET
-      projectId = ?,
-      buildingId = ?,
-      floorId = ?,
       number = ?,
       surface = ?,
       bedrooms = ?,
@@ -205,11 +278,8 @@ export function updateUnit(unitId, updates) {
       planId = ?,
       modelReference = ?,
       images = ?
-     WHERE id = ?`,
+     WHERE id = ? AND projectId = ?`,
   ).run(
-    next.projectId,
-    next.buildingId,
-    next.floorId,
     String(next.number),
     Number(next.surface) || 0,
     Number(next.bedrooms) || 0,
@@ -223,9 +293,10 @@ export function updateUnit(unitId, updates) {
     next.modelReference,
     withJson(next.images),
     unitId,
+    projectId,
   );
 
-  return getUnitById(next.projectId, unitId);
+  return getUnitById(projectId, unitId);
 }
 
 export function createPlan({ projectId, name, kind = 'architectural', filePath = '', description = '' }) {
