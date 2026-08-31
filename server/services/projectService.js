@@ -428,3 +428,112 @@ export function normalizeUnit(row) {
     images: fromJson(row.images) ?? [],
   };
 }
+
+
+export function updateCompany(companyId, updates = {}) {
+  const current = db.prepare('SELECT * FROM companies WHERE id = ?').get(companyId);
+  if (!current) return null;
+  const next = {
+    name: updates.name ?? current.name,
+    slug: updates.slug ?? current.slug,
+    status: updates.status ?? current.status,
+  };
+  if (!next.name || !next.slug) throw new Error('name and slug are required');
+  db.prepare('UPDATE companies SET name = ?, slug = ?, status = ? WHERE id = ?')
+    .run(next.name, next.slug, next.status, companyId);
+  return db.prepare('SELECT * FROM companies WHERE id = ?').get(companyId);
+}
+
+export function updateProject(projectId, updates = {}) {
+  const current = getProjectById(projectId);
+  if (!current) return null;
+  const next = { ...current, ...updates, id: current.id, companyId: current.companyId };
+  if (!next.name || !next.slug) throw new Error('name and slug are required');
+  const duplicate = db.prepare('SELECT id FROM projects WHERE companyId = ? AND slug = ? AND id != ? LIMIT 1')
+    .get(current.companyId, next.slug, projectId);
+  if (duplicate) throw new Error(`A project with slug "${next.slug}" already exists for this company.`);
+  db.prepare(`UPDATE projects SET name = ?, slug = ?, description = ?, status = ?, location = ?, branding = ?,
+    buildingReference = ?, environmentConfig = ?, publicationConfig = ? WHERE id = ?`).run(
+    next.name, next.slug, next.description ?? '', next.status ?? 'DRAFT', withJson(next.location),
+    withJson(next.branding), next.buildingReference ?? '', withJson(next.environmentConfig),
+    withJson(next.publicationConfig), projectId,
+  );
+  return getProjectById(projectId);
+}
+
+export function updateBuilding(projectId, buildingId, updates = {}) {
+  const current = db.prepare('SELECT * FROM buildings WHERE id = ? AND projectId = ?').get(buildingId, projectId);
+  if (!current) return null;
+  const next = { ...current, ...updates };
+  if (!next.name) throw new Error('name is required');
+  db.prepare('UPDATE buildings SET name = ?, reference = ?, metadata = ? WHERE id = ? AND projectId = ?')
+    .run(next.name, next.reference ?? '', withJson(next.metadata), buildingId, projectId);
+  return db.prepare('SELECT * FROM buildings WHERE id = ? AND projectId = ?').get(buildingId, projectId);
+}
+
+export function updateFloor(projectId, floorId, updates = {}) {
+  const current = db.prepare('SELECT * FROM floors WHERE id = ? AND projectId = ?').get(floorId, projectId);
+  if (!current) return null;
+  const next = { ...current, ...updates, projectId: current.projectId, buildingId: current.buildingId };
+  if (Number.isNaN(Number(next.number))) throw new Error('valid number is required');
+  db.prepare('UPDATE floors SET number = ?, name = ?, metadata = ? WHERE id = ? AND projectId = ?')
+    .run(Number(next.number), next.name ?? '', withJson(next.metadata), floorId, projectId);
+  return db.prepare('SELECT * FROM floors WHERE id = ? AND projectId = ?').get(floorId, projectId);
+}
+
+function updateProjectResource(table, projectId, resourceId, fields) {
+  const current = db.prepare(`SELECT * FROM ${table} WHERE id = ? AND projectId = ?`).get(resourceId, projectId);
+  if (!current) return null;
+  const next = { ...current, ...fields };
+  return { current, next };
+}
+
+export function updatePlan(projectId, planId, updates = {}) {
+  const record = updateProjectResource('plans', projectId, planId, updates);
+  if (!record) return null;
+  const { next } = record;
+  if (!next.name) throw new Error('name is required');
+  db.prepare('UPDATE plans SET name = ?, kind = ?, filePath = ?, description = ? WHERE id = ? AND projectId = ?')
+    .run(next.name, next.kind ?? 'architectural', next.filePath ?? '', next.description ?? '', planId, projectId);
+  return db.prepare('SELECT * FROM plans WHERE id = ? AND projectId = ?').get(planId, projectId);
+}
+
+export function updateAsset(projectId, assetId, updates = {}) {
+  const record = updateProjectResource('assets', projectId, assetId, updates);
+  if (!record) return null;
+  const { next } = record;
+  if (!next.name || !next.kind) throw new Error('name and kind are required');
+  db.prepare(`UPDATE assets SET entityType = ?, entityId = ?, name = ?, kind = ?, path = ?, url = ?, mimeType = ?,
+    metadata = ?, isPrimary = ? WHERE id = ? AND projectId = ?`).run(
+    next.entityType ?? null, next.entityId ?? null, next.name, next.kind, next.path ?? '', next.url ?? '',
+    next.mimeType ?? '', withJson(next.metadata), next.isPrimary ? 1 : 0, assetId, projectId,
+  );
+  return db.prepare('SELECT * FROM assets WHERE id = ? AND projectId = ?').get(assetId, projectId);
+}
+
+export function updateAmenity(projectId, amenityId, updates = {}) {
+  const record = updateProjectResource('amenities', projectId, amenityId, updates);
+  if (!record) return null;
+  const { next } = record;
+  if (!next.name) throw new Error('name is required');
+  db.prepare('UPDATE amenities SET name = ?, description = ?, category = ? WHERE id = ? AND projectId = ?')
+    .run(next.name, next.description ?? '', next.category ?? 'common', amenityId, projectId);
+  return db.prepare('SELECT * FROM amenities WHERE id = ? AND projectId = ?').get(amenityId, projectId);
+}
+
+export function updateLocation(projectId, updates = {}) {
+  const current = db.prepare('SELECT * FROM locations WHERE projectId = ?').get(projectId);
+  if (!current) return createLocation({ projectId, ...updates });
+  const next = { ...current, ...updates };
+  db.prepare('UPDATE locations SET name = ?, city = ?, country = ?, district = ?, coordinates = ? WHERE projectId = ?')
+    .run(next.name ?? '', next.city ?? '', next.country ?? '', next.district ?? '', withJson(next.coordinates), projectId);
+  return getProjectLocation(projectId);
+}
+
+export function unpublishProject(projectId) {
+  const project = getProjectById(projectId);
+  if (!project) return null;
+  db.prepare('UPDATE projects SET status = ? WHERE id = ?').run('DRAFT', projectId);
+  db.prepare('UPDATE project_publications SET isPublished = 0, status = ? WHERE projectId = ?').run('DRAFT', projectId);
+  return getProjectById(projectId);
+}
