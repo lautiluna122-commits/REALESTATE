@@ -1,5 +1,5 @@
-import ShowroomExperience from './experience/ShowroomExperience';
+import CinematicShowroomV2 from './experience/CinematicShowroomV2';
 
 export default function App() {
-  return <ShowroomExperience />;
+  return <CinematicShowroomV2 />;
 }
