@@ -28,6 +28,15 @@ import {
   createProjectPublication,
   publishProject,
   ensureCompanyAccess,
+  updateCompany,
+  updateProject,
+  updateBuilding,
+  updateFloor,
+  updatePlan,
+  updateAsset,
+  updateAmenity,
+  updateLocation,
+  unpublishProject,
 } from './services/projectService.js';
 
 const app = express();
@@ -485,6 +494,50 @@ app.get('/api/projects/public/:slug', (req, res) => {
 app.post('/api/auth/tenant-access', (req, res) => {
   const { requestedCompanyId, targetCompanyId } = req.body;
   res.json({ allowed: ensureCompanyAccess(requestedCompanyId, targetCompanyId) });
+});
+
+
+// Phase 2 management updates. All resource mutations remain project-scoped.
+function managementResult(res, result, label) {
+  if (!result) return res.status(404).json({ message: `${label} not found` });
+  return res.json(result);
+}
+
+app.patch('/api/admin/companies/:companyId', (req, res) => {
+  try { return managementResult(res, updateCompany(req.params.companyId, req.body), 'Company'); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
+});
+app.patch('/api/admin/projects/:projectId', (req, res) => {
+  try { return managementResult(res, updateProject(req.params.projectId, req.body), 'Project'); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
+});
+app.patch('/api/admin/projects/:projectId/buildings/:buildingId', (req, res) => {
+  try { return managementResult(res, updateBuilding(req.params.projectId, req.params.buildingId, req.body), 'Building'); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
+});
+app.patch('/api/admin/projects/:projectId/floors/:floorId', (req, res) => {
+  try { return managementResult(res, updateFloor(req.params.projectId, req.params.floorId, req.body), 'Floor'); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
+});
+app.patch('/api/admin/projects/:projectId/plans/:planId', (req, res) => {
+  try { return managementResult(res, updatePlan(req.params.projectId, req.params.planId, req.body), 'Plan'); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
+});
+app.patch('/api/admin/projects/:projectId/assets/:assetId', (req, res) => {
+  try { return managementResult(res, updateAsset(req.params.projectId, req.params.assetId, req.body), 'Asset'); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
+});
+app.patch('/api/admin/projects/:projectId/amenities/:amenityId', (req, res) => {
+  try { return managementResult(res, updateAmenity(req.params.projectId, req.params.amenityId, req.body), 'Amenity'); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
+});
+app.put('/api/admin/projects/:projectId/location', (req, res) => {
+  try { return res.json(updateLocation(req.params.projectId, req.body)); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
+});
+app.post('/api/admin/projects/:projectId/unpublish', (req, res) => {
+  try { return managementResult(res, unpublishProject(req.params.projectId), 'Project'); }
+  catch (error) { return res.status(400).json({ message: error.message }); }
 });
 
 app.listen(port, () => {
