@@ -5,10 +5,11 @@ import DemoPortal from './demo/DemoPortal';
 import './index.css';
 import './demo/demo.css';
 
-const isDemoPortal = window.location.pathname === '/demo' || window.location.pathname.startsWith('/demo/');
+const path = window.location.pathname;
+const isAdminDemo = path === '/admin' || path.startsWith('/admin/');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {isDemoPortal ? <DemoPortal /> : <App />}
+    {isAdminDemo ? <DemoPortal /> : <App />}
   </React.StrictMode>,
 );
