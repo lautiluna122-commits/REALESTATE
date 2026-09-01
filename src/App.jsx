@@ -1,6 +1,6 @@
-import ShowroomV3 from './experience/ShowroomV3';
+import ShowroomLaunch from './experience/ShowroomLaunch';
 import './experience/showroom-v3.css';
 
 export default function App() {
-  return <ShowroomV3 />;
+  return <ShowroomLaunch />;
 }
