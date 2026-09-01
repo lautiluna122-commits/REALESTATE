@@ -1,5 +1,6 @@
-import CinematicShowroomV2 from './experience/CinematicShowroomV2';
+import ShowroomV3 from './experience/ShowroomV3';
+import './experience/showroom-v3.css';
 
 export default function App() {
-  return <CinematicShowroomV2 />;
+  return <ShowroomV3 />;
 }
