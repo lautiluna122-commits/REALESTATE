@@ -20,33 +20,20 @@ export default function DemoPortal() {
   }), [floor, status]);
 
   const goShowroom = () => {
-    window.location.href = '/?experience=showroom';
+    window.location.href = '/';
   };
 
   return (
     <div className="demo-portal">
       <aside className="demo-sidebar">
-        <div className="demo-brand">
-          <span className="demo-mark">R</span>
-          <div><strong>REALESTATE</strong><small>Experience Platform</small></div>
-        </div>
+        <div className="demo-brand"><span className="demo-mark">R</span><div><strong>REALESTATE</strong><small>Experience Platform</small></div></div>
         <div className="demo-context"><span>PROYECTO DEMO</span><strong>Ocean Mansions</strong><small>Punta del Este · Playa Mansa</small></div>
-        <nav>
-          {[
-            ['overview', 'Resumen'], ['building', 'Edificio 3D'], ['inventory', 'Inventario'], ['plans', 'Planos'], ['amenities', 'Amenities'], ['publication', 'Publicación'],
-          ].map(([key, label]) => (
-            <button key={key} className={section === key ? 'active' : ''} onClick={() => setSection(key)}>{label}</button>
-          ))}
-        </nav>
+        <nav>{[['overview', 'Resumen'], ['building', 'Edificio 3D'], ['inventory', 'Inventario'], ['plans', 'Planos'], ['amenities', 'Amenities'], ['publication', 'Publicación']].map(([key, label]) => <button key={key} className={section === key ? 'active' : ''} onClick={() => setSection(key)}>{label}</button>)}</nav>
         <button className="demo-public" onClick={goShowroom}>Abrir showroom público ↗</button>
       </aside>
 
       <main className="demo-main">
-        <header className="demo-header">
-          <div><span className="eyebrow">PANEL DE PROYECTO</span><h1>{section === 'overview' ? 'Ocean Mansions' : sectionLabel(section)}</h1></div>
-          <div className="demo-header-actions"><span className="live-dot">Publicado</span><button className="ghost" onClick={goShowroom}>Ver experiencia</button><div className="avatar">OL</div></div>
-        </header>
-
+        <header className="demo-header"><div><span className="eyebrow">PANEL DE PROYECTO</span><h1>{section === 'overview' ? 'Ocean Mansions' : sectionLabel(section)}</h1></div><div className="demo-header-actions"><span className="live-dot">Publicado</span><button className="ghost" onClick={goShowroom}>Ver experiencia</button><div className="avatar">OL</div></div></header>
         {section === 'overview' && <Overview onShowroom={goShowroom} onInventory={() => setSection('inventory')} />}
         {section === 'building' && <BuildingPreview onShowroom={goShowroom} />}
         {section === 'inventory' && <Inventory floor={floor} status={status} setFloor={setFloor} setStatus={setStatus} units={filteredUnits} selectedUnit={selectedUnit} setSelectedUnit={setSelectedUnit} />}
@@ -58,27 +45,10 @@ export default function DemoPortal() {
   );
 }
 
-function sectionLabel(section) {
-  return { building: 'Edificio 3D', inventory: 'Inventario', plans: 'Planos', amenities: 'Amenities', publication: 'Publicación' }[section] ?? 'Proyecto';
-}
-
-function Overview({ onShowroom, onInventory }) {
-  return <>
-    <section className="hero-card">
-      <div className="hero-copy"><span className="eyebrow light">EXPERIENCIA INMOBILIARIA DIGITAL</span><h2>Del plano al<br /><em>showroom 3D.</em></h2><p>Una única estructura para gestionar el proyecto, vender unidades y publicar una experiencia interactiva.</p><div className="hero-actions"><button onClick={onShowroom}>Explorar experiencia 3D <span>↗</span></button><button className="hero-secondary" onClick={onInventory}>Ver inventario</button></div></div>
-      <div className="hero-building" aria-hidden="true"><div className="tower"><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="sea" /></div>
-    </section>
-    <div className="stats-grid"><Stat label="Unidades" value="48" meta="12 pisos" /><Stat label="Disponibles" value="21" meta="43,8% del inventario" /><Stat label="Superficie" value="6.480 m²" meta="residencial" /><Stat label="Publicación" value="LIVE" meta="ocean-mansions" /></div>
-    <section className="two-col"><div className="panel"><div className="panel-head"><div><span className="eyebrow">ESTRUCTURA</span><h3>Proyecto organizado</h3></div></div><div className="tree"><div><b>Ocean Group</b><span>Constructora</span></div><div><b>Ocean Mansions</b><span>Proyecto</span></div><div><b>Edificio principal</b><span>12 pisos · 48 unidades</span></div><div><b>Experiencia 3D</b><span>Web · interactiva</span></div></div></div><div className="panel"><div className="panel-head"><div><span className="eyebrow">RECORRIDO</span><h3>Lo que verá el comprador</h3></div></div><ol className="journey"><li><b>01</b><span>Vista aérea del proyecto</span></li><li><b>02</b><span>Explorar edificio y pisos</span></li><li><b>03</b><span>Elegir una unidad</span></li><li><b>04</b><span>Ver plano y recorrer interior</span></li></ol></div></section>
-  </>;
-}
-
+function sectionLabel(section) { return { building: 'Edificio 3D', inventory: 'Inventario', plans: 'Planos', amenities: 'Amenities', publication: 'Publicación' }[section] ?? 'Proyecto'; }
+function Overview({ onShowroom, onInventory }) { return <><section className="hero-card"><div className="hero-copy"><span className="eyebrow light">EXPERIENCIA INMOBILIARIA DIGITAL</span><h2>Del plano al<br /><em>showroom 3D.</em></h2><p>Una única estructura para gestionar el proyecto, vender unidades y publicar una experiencia interactiva.</p><div className="hero-actions"><button onClick={onShowroom}>Explorar experiencia 3D <span>↗</span></button><button className="hero-secondary" onClick={onInventory}>Ver inventario</button></div></div><div className="hero-building" aria-hidden="true"><div className="tower"><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="sea" /></div></section><div className="stats-grid"><Stat label="Unidades" value="48" meta="12 pisos" /><Stat label="Disponibles" value="21" meta="43,8% del inventario" /><Stat label="Superficie" value="6.480 m²" meta="residencial" /><Stat label="Publicación" value="LIVE" meta="ocean-mansions" /></div><section className="two-col"><div className="panel"><div className="panel-head"><div><span className="eyebrow">ESTRUCTURA</span><h3>Proyecto organizado</h3></div></div><div className="tree"><div><b>Ocean Group</b><span>Constructora</span></div><div><b>Ocean Mansions</b><span>Proyecto</span></div><div><b>Edificio principal</b><span>12 pisos · 48 unidades</span></div><div><b>Experiencia 3D</b><span>Web · interactiva</span></div></div></div><div className="panel"><div className="panel-head"><div><span className="eyebrow">RECORRIDO</span><h3>Lo que verá el comprador</h3></div></div><ol className="journey"><li><b>01</b><span>Vista aérea del proyecto</span></li><li><b>02</b><span>Explorar edificio y pisos</span></li><li><b>03</b><span>Elegir una unidad</span></li><li><b>04</b><span>Ver plano y recorrer interior</span></li></ol></div></section></>; }
 function Stat({ label, value, meta }) { return <div className="stat"><span>{label}</span><strong>{value}</strong><small>{meta}</small></div>; }
-
 function BuildingPreview({ onShowroom }) { return <section className="building-stage"><div className="stage-copy"><span className="eyebrow light">3D EXPERIENCE</span><h2>El edificio es el<br /><em>centro del producto.</em></h2><p>Esta pantalla será el puente entre los datos del proyecto y el renderer. Desde acá se podrá seleccionar piso, unidad y experiencia.</p><button onClick={onShowroom}>Abrir experiencia actual ↗</button></div><div className="stage-tower"><div className="stage-glow" /><div className="stage-building">{Array.from({ length: 12 }).map((_, i) => <div className="stage-floor" key={i}><span /><span /><span /><span /></div>)}</div><div className="stage-ground" /></div></section>; }
-
 function Inventory({ floor, status, setFloor, setStatus, units, selectedUnit, setSelectedUnit }) { return <section className="panel inventory-panel"><div className="panel-head"><div><span className="eyebrow">INVENTARIO COMERCIAL</span><h3>Unidades</h3></div><span className="result-count">{units.length} resultados</span></div><div className="filters"><select value={floor} onChange={(e) => setFloor(e.target.value)}><option>Todos</option>{floors.map((f) => <option key={f}>{f}</option>)}</select><select value={status} onChange={(e) => setStatus(e.target.value)}><option>Todos</option><option>Disponible</option><option>Reservado</option><option>Vendida</option></select></div><div className="table"><div className="tr th"><span>Unidad</span><span>Piso</span><span>Tipo</span><span>Área</span><span>Precio</span><span>Estado</span></div>{units.map((unit) => <button className={`tr ${selectedUnit?.id === unit.id ? 'selected' : ''}`} key={unit.id} onClick={() => setSelectedUnit(unit)}><span><b>{unit.id}</b></span><span>{unit.floor}</span><span>{unit.type}</span><span>{unit.area} m²</span><span>US$ {unit.price.toLocaleString('en-US')}</span><span><i className={`status ${unit.status.toLowerCase()}`} />{unit.status}</span></button>)}</div>{selectedUnit && <div className="unit-detail"><div><span className="eyebrow">UNIDAD SELECCIONADA</span><h3>{selectedUnit.id} · Piso {selectedUnit.floor}</h3></div><p>{selectedUnit.type} · {selectedUnit.area} m² · US$ {selectedUnit.price.toLocaleString('en-US')}</p><button onClick={() => setSelectedUnit(null)}>Cerrar</button></div>}</section>; }
-
 function EmptyPanel({ title, text }) { return <section className="panel empty-panel"><span className="empty-icon">+</span><span className="eyebrow">MÓDULO</span><h2>{title}</h2><p>{text}</p><button>Preparado para conectar API</button></section>; }
-
 function Publication({ onShowroom }) { return <section className="panel publication"><span className="eyebrow">PUBLICACIÓN</span><h2>Ocean Mansions está online.</h2><p>La constructora podrá compartir una URL pública desde su propia web, sin exponer el panel de administración.</p><div className="url-box">realestate.app/showroom/ocean-mansions <button onClick={onShowroom}>Abrir ↗</button></div><div className="publish-grid"><div><b>Estado</b><strong><i className="status disponible" /> Publicado</strong></div><div><b>Slug público</b><strong>ocean-mansions</strong></div><div><b>Acceso</b><strong>Solo lectura</strong></div></div></section>; }
