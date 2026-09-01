@@ -1,23 +1,13 @@
 import { getProjectById } from '../platform/projectRegistry';
+import { createExperienceContract } from './experienceContract';
 
 export function createProjectExperience(projectId = 'ocean-mansions') {
   const project = getProjectById(projectId);
+  const experience = createExperienceContract(project);
 
   return {
-    projectId: project.id,
-    projectName: project.name,
+    ...experience,
     data: project,
-    assets: project.assets,
-    config: project.config,
-    publication: project.publication,
-    scene: {
-      environment: project.config.environment,
-      experience: project.config.experience,
-      lighting: {
-        dayNight: project.config.experience.dayNight,
-        autoExposure: true,
-      },
-    },
     engine: {
       type: 'three-js',
       renderer: 'react-three-fiber',
