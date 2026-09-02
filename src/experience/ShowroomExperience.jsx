@@ -115,21 +115,59 @@ function CameraRig({ mode, controlsRef, selectedFloor }) {
   return null;
 }
 
-function Scene({ selectedFloor, selectedUnit, night, cameraMode, tour, onSelectUnit }) {
+function Scene({ selectedFloor, selectedUnit, night, sunset, cameraMode, tour, onSelectUnit }) {
   const controlsRef = useRef();
+  const background = night ? '#071219' : sunset ? '#b97e56' : '#a8c6cf';
+  const ambient = night ? .42 : sunset ? .95 : 1.18;
+  const directional = night ? 1.25 : sunset ? 2.2 : 3.15;
+  const skyPosition = night ? [-4, -2, 2] : sunset ? [7, 4, 5] : [8, 8, 5];
+  const skyInclination = night ? .82 : sunset ? .62 : .48;
+
   return <Canvas shadows camera={{ position: [34, 24, 40], fov: 35 }} dpr={[1, 1.7]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
-    <color attach="background" args={[night ? '#071219' : '#a8c6cf']} /><fog attach="fog" args={[night ? '#071219' : '#a8c6cf', 42, 100]} />
-    <ambientLight intensity={night ? .42 : 1.18} /><directionalLight castShadow position={[18, 32, 10]} intensity={night ? 1.25 : 3.15} color={night ? '#e5bd75' : '#fff1d0'} shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-38} shadow-camera-right={38} shadow-camera-top={38} shadow-camera-bottom={-38} />
-    <Environment preset="city" /><Sky distance={450000} sunPosition={night ? [-4, -2, 2] : [8, 8, 5]} inclination={night ? .82 : .48} azimuth={.22} />
-    <Site night={night} /><Tower selectedFloor={selectedFloor} selectedUnit={selectedUnit} night={night} onSelectUnit={onSelectUnit} /><ContactShadows position={[0, -.02, 0]} opacity={night ? .3 : .42} scale={70} blur={2.5} far={45} />
+    <color attach="background" args={[background]} /><fog attach="fog" args={[background, 42, 100]} />
+    <ambientLight intensity={ambient} /><directionalLight castShadow position={[18, 32, 10]} intensity={directional} color={night ? '#e5bd75' : sunset ? '#ffd7a1' : '#fff1d0'} shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-38} shadow-camera-right={38} shadow-camera-top={38} shadow-camera-bottom={-38} />
+    <Environment preset="city" /><Sky distance={450000} sunPosition={skyPosition} inclination={skyInclination} azimuth={.22} />
+    <Site night={night} /><Tower selectedFloor={selectedFloor} selectedUnit={selectedUnit} night={night} onSelectUnit={onSelectUnit} /><ContactShadows position={[0, -.02, 0]} opacity={night ? .3 : sunset ? .38 : .42} scale={70} blur={2.5} far={45} />
     <CameraRig mode={cameraMode} controlsRef={controlsRef} selectedFloor={selectedFloor} />
     <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={.065} minDistance={12} maxDistance={66} maxPolarAngle={Math.PI / 2.02} autoRotate={tour} autoRotateSpeed={.35} target={[0, 12, 7]} />
   </Canvas>;
 }
 
-function UnitCard({ unit, onPlan, onClose, onFocus }) {
+function UnitCard({ unit, onPlan, onClose, onFocus, onLead }) {
   if (!unit) return null; const area = unit.area ?? unit.surface ?? 0;
-  return <aside className="unit-detail"><button className="icon-close" onClick={onClose}>×</button><div className="unit-kicker">UNIDAD {unit.number} · PISO {unit.floor}</div><h2>{unit.type}</h2><div className={`availability ${unit.status.toLowerCase()}`}>{statusLabel(unit.status)}</div><div className="unit-price">{money.format(unit.price)}</div><div className="unit-metrics"><span><b>{area} m²</b> superficie</span><span><b>{unit.terrace} m²</b> terraza</span><span><b>{unit.bedrooms}</b> dormitorios</span><span><b>{unit.bathrooms}</b> baños</span></div><p>{unit.description}</p><div className="unit-actions"><button className="btn-dark" onClick={onFocus}>Ver unidad <span>↗</span></button><button className="btn-outline" onClick={onPlan}>Ver plano</button></div></aside>;
+  return <aside className="unit-detail"><button className="icon-close" onClick={onClose}>×</button><div className="unit-kicker">UNIDAD {unit.number} · PISO {unit.floor}</div><h2>{unit.type}</h2><div className={`availability ${unit.status.toLowerCase()}`}>{statusLabel(unit.status)}</div><div className="unit-price">{money.format(unit.price)}</div><div className="unit-metrics"><span><b>{area} m²</b> superficie</span><span><b>{unit.terrace} m²</b> terraza</span><span><b>{unit.bedrooms}</b> dormitorios</span><span><b>{unit.bathrooms}</b> baños</span></div><p>{unit.description}</p><div className="unit-actions"><button className="btn-dark" onClick={onFocus}>Ver unidad <span>↗</span></button><button className="btn-outline" onClick={onPlan}>Ver plano</button><button className="btn-ghost" onClick={onLead}>Solicitar información</button></div></aside>;
+}
+
+function LeadForm({ project, unit, onClose }) {
+  const [form, setForm] = useState({
+    projectId: project.id,
+    unitId: unit?.id ?? '',
+    name: '',
+    email: '',
+    phone: '',
+    message: '',
+  });
+  const [submitted, setSubmitted] = useState(false);
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const payload = {
+      projectId: form.projectId,
+      unitId: form.unitId,
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      message: form.message,
+    };
+    console.info('Lead capture payload', payload);
+    setSubmitted(true);
+  };
+
+  return <div className="modal" onClick={onClose}><div className="lead-modal" onClick={(event) => event.stopPropagation()}><div className="modal-head"><div><span>CAPTURA DE LEAD</span><h3>{project.name}</h3></div><button className="icon-close" onClick={onClose}>×</button></div>{submitted ? <div className="lead-success"><p>Gracias. La consulta quedó preparada para seguimiento.</p><button className="btn-dark" onClick={onClose}>Cerrar</button></div> : <form className="lead-form" onSubmit={handleSubmit}><div className="form-grid"><label><span>Proyecto</span><input value={form.projectId} readOnly /></label><label><span>Unidad</span><input value={unit ? `Unidad ${unit.number} · Piso ${unit.floor}` : form.unitId} readOnly /></label><label><span>Nombre</span><input value={form.name} onChange={(event) => updateField('name', event.target.value)} required /></label><label><span>Email</span><input type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} required /></label><label><span>Teléfono</span><input type="tel" value={form.phone} onChange={(event) => updateField('phone', event.target.value)} /></label><label className="full"><span>Mensaje</span><textarea value={form.message} onChange={(event) => updateField('message', event.target.value)} rows="4" /></label></div><div className="lead-actions"><button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="btn-dark">Solicitar información</button></div></form>}</div></div>;
 }
 
 function PlanModal({ unit, onClose }) {
@@ -138,11 +176,14 @@ function PlanModal({ unit, onClose }) {
 }
 
 export default function ShowroomExperience() {
-  const [selectedFloor, setSelectedFloor] = useState(null); const [selectedUnit, setSelectedUnit] = useState(null); const [night, setNight] = useState(false); const [planUnit, setPlanUnit] = useState(null); const [cameraMode, setCameraMode] = useState('master'); const [tour, setTour] = useState(false); const [tourStep, setTourStep] = useState(0); const [activeSection, setActiveSection] = useState('proyecto'); const [finderType, setFinderType] = useState('Todos'); const [finderFloor, setFinderFloor] = useState('Todos');
+  const [selectedFloor, setSelectedFloor] = useState(null); const [selectedUnit, setSelectedUnit] = useState(null); const [sceneMode, setSceneMode] = useState('day'); const [planUnit, setPlanUnit] = useState(null); const [leadUnit, setLeadUnit] = useState(null); const [cameraMode, setCameraMode] = useState('master'); const [tour, setTour] = useState(false); const [tourStep, setTourStep] = useState(0); const [activeSection, setActiveSection] = useState('inicio'); const [finderType, setFinderType] = useState('Todos'); const [finderFloor, setFinderFloor] = useState('Todos');
   const finderUnits = useMemo(() => units.filter((unit) => (finderType === 'Todos' || unit.type === finderType) && (finderFloor === 'Todos' || String(unit.floor) === finderFloor)), [finderType, finderFloor]);
   const types = [...new Set(units.map((unit) => unit.type))]; const fromPrice = Math.min(...units.map((unit) => unit.price)); const available = units.filter((unit) => unit.status === 'AVAILABLE').length; const reserved = units.filter((unit) => unit.status === 'RESERVED').length; const sold = units.filter((unit) => unit.status === 'SOLD').length;
+  const sceneModes = ['day', 'sunset', 'night'];
+  const night = sceneMode === 'night';
+  const sunrise = sceneMode === 'sunset';
   const go = (id) => { setActiveSection(id); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); };
-  const focusUnit = (unit) => { setSelectedUnit(unit); setSelectedFloor(unit.floor); setCameraMode('close'); document.getElementById('proyecto')?.scrollIntoView({ behavior: 'smooth' }); };
+  const focusUnit = (unit) => { setSelectedUnit(unit); setSelectedFloor(unit.floor); setCameraMode('close'); setActiveSection('proyecto'); document.getElementById('proyecto')?.scrollIntoView({ behavior: 'smooth' }); };
 
   useEffect(() => {
     if (!tour) return undefined;
@@ -151,26 +192,27 @@ export default function ShowroomExperience() {
     return () => window.clearInterval(timer);
   }, [tour]);
 
-  return <div className={`experience ${night ? 'is-night' : ''}`}>
-    <header className="site-nav"><div className="logo"><span>RE</span><div><strong>REAL ESTATE</strong><small>DIGITAL PROPERTY EXPERIENCE</small></div></div><nav>{['proyecto','unidades','amenities','ubicacion'].map((item) => <button key={item} className={activeSection === item ? 'active' : ''} onClick={() => go(item)}>{item}</button>)}</nav><div className="nav-actions"><button className="theme-switch" onClick={() => setNight((value) => !value)}>{night ? '☼ Día' : '☾ Noche'}</button><button className="nav-contact" onClick={() => window.open('https://wa.me/?text=Hola%2C%20quiero%20informacion%20del%20proyecto%20Ocean%20Mansions', '_blank')}>Contactar</button></div></header>
+  return <div className={`experience ${night ? 'is-night' : ''} ${sunrise ? 'is-sunset' : ''}`}>
+    <header className="site-nav"><div className="logo"><span>RE</span><div><strong>REAL ESTATE</strong><small>DIGITAL PROPERTY EXPERIENCE</small></div></div><nav>{['inicio','proyecto','edificio','unidades','amenities','ubicacion','contacto'].map((item) => <button key={item} className={activeSection === item ? 'active' : ''} onClick={() => go(item)}>{item}</button>)}</nav><div className="nav-actions"><button className="theme-switch" onClick={() => setSceneMode((current) => sceneModes[(sceneModes.indexOf(current) + 1) % sceneModes.length])}>{sceneMode === 'day' ? '☼ Día' : sceneMode === 'sunset' ? '☀ Atardecer' : '☾ Noche'}</button><button className="nav-contact" onClick={() => { setLeadUnit(units[0]); setActiveSection('contacto'); }}>Contactar</button></div></header>
     <main>
-      <section id="proyecto" className="hero">
-        <div className="scene"><Scene selectedFloor={selectedFloor} selectedUnit={selectedUnit} night={night} cameraMode={cameraMode} tour={tour} onSelectUnit={(unit) => { setSelectedUnit(unit); setSelectedFloor(unit.floor); setCameraMode('close'); }} /></div>
+      <section id="inicio" className="hero">
+        <div className="scene"><Scene selectedFloor={selectedFloor} selectedUnit={selectedUnit} night={night} sunset={sunrise} cameraMode={cameraMode} tour={tour} onSelectUnit={(unit) => { setSelectedUnit(unit); setSelectedFloor(unit.floor); setCameraMode('close'); }} /></div>
         <div className="hero-gradient" />
         <div className="cinematic-vignette" />
-        <div className="hero-copy"><span className="eyebrow">PUNTA DEL ESTE · PLAYA MANSA</span><h1>Ocean<br/><em>Mansions</em></h1><p>Recorré el proyecto. Explorá cada piso. Encontrá la unidad que querés.</p><div className="hero-cta"><button className="btn-dark" onClick={() => { setCameraMode('building'); setSelectedFloor(null); }}>Explorar edificio <span>↗</span></button><button className="btn-ghost" onClick={() => setTour((value) => !value)}>{tour ? 'Detener tour' : 'Tour cinematográfico'}</button></div></div>
+        <div className="hero-copy"><span className="eyebrow">PUNTA DEL ESTE · PLAYA MANSA</span><h1>Ocean<br/><em>Mansions</em></h1><p>Recorré el proyecto. Explorá cada piso. Encontrá la unidad que querés.</p><div className="hero-cta"><button className="btn-dark" onClick={() => { setCameraMode('building'); setSelectedFloor(null); go('edificio'); }}>Explorar edificio <span>↗</span></button><button className="btn-ghost" onClick={() => setTour((value) => !value)}>{tour ? 'Detener tour' : 'Tour cinematográfico'}</button></div></div>
         <div className="scene-controls"><button className={cameraMode === 'master' ? 'active' : ''} onClick={() => setCameraMode('master')}>Masterplan</button><button className={cameraMode === 'building' ? 'active' : ''} onClick={() => setCameraMode('building')}>Edificio</button><button className={cameraMode === 'pool' ? 'active' : ''} onClick={() => setCameraMode('pool')}>Amenities</button><button className={cameraMode === 'roof' ? 'active' : ''} onClick={() => setCameraMode('roof')}>Skyline</button></div>
         <div className="floor-picker"><span className="picker-label">PISOS</span><button className={selectedFloor === null ? 'selected' : ''} onClick={() => { setSelectedFloor(null); setCameraMode('building'); }}>ALL</button>{floors.map((floor) => <button key={floor} className={selectedFloor === floor ? 'selected' : ''} onClick={() => { setSelectedFloor(floor); setCameraMode('close'); }}>{String(floor).padStart(2, '0')}</button>)}</div>
         <div className="hero-stats"><span><b>{units.length}</b> unidades</span><span><b>{floors.length}</b> pisos</span><span><b>USD {Math.round(fromPrice / 1000)}K</b> desde</span></div>
         <div className="scene-meta"><span>SCENE 0{tourStep + 1}</span><i /> <span>{tour ? 'CINEMATIC TOUR' : 'INTERACTIVE SHOWROOM'}</span></div>
-        {selectedUnit && <UnitCard unit={selectedUnit} onPlan={() => setPlanUnit(selectedUnit)} onClose={() => setSelectedUnit(null)} onFocus={() => focusUnit(selectedUnit)} />}
+        {selectedUnit && <UnitCard unit={selectedUnit} onPlan={() => setPlanUnit(selectedUnit)} onClose={() => setSelectedUnit(null)} onFocus={() => focusUnit(selectedUnit)} onLead={() => setLeadUnit(selectedUnit)} />}
         <div className="scene-hint"><span>DRAG · ORBITAR</span><span>SCROLL · ZOOM</span><span>CLICK · EXPLORAR</span></div>
       </section>
-      <section className="intro-band"><div><span className="eyebrow">EL PROYECTO</span><h2>Una propiedad<br/><em>para recorrer.</em></h2></div><p>La experiencia está pensada para que la arquitectura, la disponibilidad y la información comercial convivan en el mismo recorrido. No mirás un plano: entendés el proyecto.</p><div className="intro-price"><span>Unidades desde</span><strong>{money.format(fromPrice)}</strong></div></section>
+      <section id="proyecto" className="intro-band"><div><span className="eyebrow">EL PROYECTO</span><h2>Una propiedad<br/><em>para recorrer.</em></h2></div><p>La experiencia está pensada para que la arquitectura, la disponibilidad y la información comercial convivan en el mismo recorrido. No mirás un plano: entendés el proyecto.</p><div className="intro-price"><span>Unidades desde</span><strong>{money.format(fromPrice)}</strong></div></section>
+      <section id="edificio" className="section units-section"><div className="section-head"><div><span className="eyebrow">EDIFICIO</span><h2>Masterplan y<br/><em>piso destacado.</em></h2></div><p>Seleccioná un nivel para centrar la vista en el recorrido por la torre, la vista al mar y la disponibilidad de cada unidad.</p></div><div className="finder"><select value={finderFloor} onChange={(e) => setFinderFloor(e.target.value)}><option>Todos</option>{floors.map((floor) => <option key={floor}>{floor}</option>)}</select><div className="legend"><span><i className="dot available" /> {available} disponibles</span><span><i className="dot reserved" /> {reserved} reservadas</span><span><i className="dot sold" /> {sold} vendidas</span></div></div></section>
       <section id="unidades" className="section units-section"><div className="section-head"><div><span className="eyebrow">INVENTARIO EN TIEMPO REAL</span><h2>Encontrá tu<br/><em>unidad.</em></h2></div><p>Seleccioná una tipología o un piso. Cada unidad está vinculada al edificio 3D y a su ficha comercial.</p></div><div className="finder"><select value={finderType} onChange={(e) => setFinderType(e.target.value)}><option>Todos</option>{types.map((type) => <option key={type}>{type}</option>)}</select><select value={finderFloor} onChange={(e) => setFinderFloor(e.target.value)}><option>Todos</option>{floors.map((floor) => <option key={floor}>{floor}</option>)}</select><div className="legend"><span><i className="dot available" /> {available} disponibles</span><span><i className="dot reserved" /> {reserved} reservadas</span><span><i className="dot sold" /> {sold} vendidas</span></div><span className="result-count">{finderUnits.length} resultados</span></div><div className="unit-grid">{finderUnits.map((unit) => <button key={unit.id} className="unit-tile" onClick={() => focusUnit(unit)}><div className="tile-top"><strong>{unit.number}</strong><i className={`dot ${unit.status.toLowerCase()}`} /></div><span>{unit.type} · Piso {unit.floor}</span><b>{money.format(unit.price)}</b><small>{unit.area ?? unit.surface ?? 0} m² · {unit.bedrooms} dorm.</small></button>)}</div></section>
-      <section id="amenities" className="section dark-section"><div className="section-head light"><div><span className="eyebrow">AMENITIES</span><h2>Todo lo que<br/><em>te rodea.</em></h2></div><p>Espacios pensados para vivir el edificio como un destino, no solamente como una vivienda.</p></div><div className="amenity-grid">{project.amenities?.map((amenity, index) => <article key={amenity.id}><span className="amenity-number">0{index + 1}</span><h3>{amenity.name}</h3><p>{amenity.description}</p><button onClick={() => { setCameraMode(index === 0 ? 'pool' : 'building'); go('proyecto'); }}>Explorar espacio ↗</button></article>)}</div></section>
+      <section id="amenities" className="section dark-section"><div className="section-head light"><div><span className="eyebrow">AMENITIES</span><h2>Todo lo que<br/><em>te rodea.</em></h2></div><p>Espacios pensados para vivir el edificio como un destino, no solamente como una vivienda.</p></div><div className="amenity-grid">{project.amenities?.map((amenity, index) => <article key={amenity.id}><span className="amenity-number">0{index + 1}</span><h3>{amenity.name}</h3><p>{amenity.description}</p><button onClick={() => { setCameraMode(index === 0 ? 'pool' : 'building'); go('inicio'); }}>Explorar espacio ↗</button></article>)}</div></section>
       <section id="ubicacion" className="location-section"><div className="location-copy"><span className="eyebrow">UBICACIÓN</span><h2>Playa<br/><em>Mansa.</em></h2><p>Una ubicación privilegiada en Punta del Este, cerca del mar, servicios y los puntos que hacen de la zona uno de los destinos más buscados.</p><button className="btn-dark" onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=-34.9,-54.9', '_blank')}>Abrir en Maps ↗</button></div><div className="map-card"><div className="map-grid" /><span className="map-pin main">Ocean Mansions</span><span className="map-pin p1">Playa Mansa</span><span className="map-pin p2">Puerto</span><span className="map-pin p3">La Barra</span><div className="map-distance"><strong>Punta del Este</strong><br/>Playa Mansa · Uruguay</div></div></section>
-      <section className="final-cta"><span className="eyebrow">TU PRÓXIMA PROPIEDAD</span><h2>¿La<br/><em>recorremos?</em></h2><button className="btn-light" onClick={() => window.open('https://wa.me/?text=Hola%2C%20quiero%20coordinar%20una%20visita%20a%20Ocean%20Mansions', '_blank')}>Quiero información ↗</button></section>
-    </main>{planUnit && <PlanModal unit={planUnit} onClose={() => setPlanUnit(null)} />}
+      <section id="contacto" className="final-cta"><span className="eyebrow">TU PRÓXIMA PROPIEDAD</span><h2>¿La<br/><em>recorremos?</em></h2><button className="btn-light" onClick={() => { setLeadUnit(units[0]); }}>Solicitar información ↗</button></section>
+    </main>{planUnit && <PlanModal unit={planUnit} onClose={() => setPlanUnit(null)} />}{leadUnit && <LeadForm project={project} unit={leadUnit} onClose={() => setLeadUnit(null)} />}
   </div>;
 }

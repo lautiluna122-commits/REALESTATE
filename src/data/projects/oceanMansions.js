@@ -1,4 +1,4 @@
-import { apartmentData } from '../apartments';
+import { apartmentData } from '../apartments.js';
 import {
   createAmenity,
   createCompany,
@@ -8,7 +8,7 @@ import {
   createProjectPublication,
   createUnit,
   UNIT_STATUS,
-} from '../../domain/platformModels';
+} from '../../domain/platformModels.js';
 
 const statusMap = {
   Disponible: UNIT_STATUS.AVAILABLE,
