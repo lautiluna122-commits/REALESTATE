@@ -65,6 +65,7 @@ function Tower({ selectedFloor, selectedUnit, night, onSelectUnit }) {
       const floor = floors[index] ?? index + 1; const y = podiumTop + index * floorHeight + floorHeight / 2; const floorUnits = units.filter((unit) => unit.floor === floor); const focused = selectedFloor == null || selectedFloor === floor; const opacity = focused ? 1 : .10; const selected = selectedFloor === floor;
       return <group key={floor} position={[0, y, 0]}>
         <mesh position={[0, -floorHeight / 2, 0]} receiveShadow><boxGeometry args={[17.8, .16, 12.1]} /><meshStandardMaterial color={selected ? '#c9ae78' : '#b8b0a5'} roughness={.72} transparent opacity={opacity} emissive={selected ? '#5c451d' : '#000'} emissiveIntensity={selected ? .15 : 0} /></mesh>
+        {selected && <mesh position={[0, -.28, 6.08]}><boxGeometry args={[15.8, .08, .08]} /><meshStandardMaterial color="#e4c26f" emissive="#8a641e" emissiveIntensity={1.4} metalness={.55} roughness={.22} /></mesh>}
         <mesh position={[0, 0, 0]}><boxGeometry args={[.48, floorHeight, 11.3]} /><meshStandardMaterial color={COLORS.concrete} roughness={.65} transparent opacity={opacity} /></mesh>
         {floorUnits.map((unit, i) => <FacadeUnit key={unit.id} unit={unit} x={-5.45 + (i % 4) * 3.62} y={0} z={5.72} selected={selectedUnit?.id === unit.id} night={night} onSelect={onSelectUnit} />)}
         {Array.from({ length: 6 }).map((_, i) => <mesh key={`back-${i}`} position={[-7.8 + i * 3.12, 0, -5.72]}><boxGeometry args={[2.35, 1.75, .1]} /><meshStandardMaterial color={night ? '#c5a96e' : '#789aa2'} roughness={.16} metalness={.55} emissive={night ? '#9a6728' : '#193d46'} emissiveIntensity={night ? .38 : .04} transparent opacity={opacity} /></mesh>)}
@@ -106,9 +107,10 @@ function CameraRig({ mode, controlsRef, selectedFloor }) {
   }), []);
   useFrame(({ camera }) => {
     const preset = targets[mode] ?? targets.building;
-    const floorLift = selectedFloor ? (selectedFloor - 1) * .32 : 0;
-    const desired = new Vector3(preset.position.x, preset.position.y + floorLift, preset.position.z);
-    const target = new Vector3(preset.target.x, preset.target.y + floorLift, preset.target.z);
+    const floorIndex = selectedFloor ? Math.max(0, selectedFloor - 1) : null;
+    const floorCenter = floorIndex == null ? null : 4.3 + floorIndex * 2.72 + 1.36;
+    const desired = new Vector3(preset.position.x, floorCenter == null ? preset.position.y : floorCenter + (mode === 'close' ? 3.8 : 7.5), preset.position.z);
+    const target = new Vector3(preset.target.x, floorCenter == null ? preset.target.y : floorCenter, preset.target.z);
     camera.position.lerp(desired, .045);
     if (controlsRef.current) controlsRef.current.target.lerp(target, .055);
   });
