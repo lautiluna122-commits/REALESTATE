@@ -1,6 +1,6 @@
 import React from 'react';
 import ShowroomStable from './experience/ShowroomStable';
-import './experience/showroom-stable.css';
+import './experience/showroom-premium.css';
 
 class AppErrorBoundary extends React.Component {
   constructor(props) {
