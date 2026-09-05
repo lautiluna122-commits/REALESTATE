@@ -1,3 +1,4 @@
+import React from 'react';
 import ShowroomV4 from './experience/ShowroomV4';
 
 class AppErrorBoundary extends React.Component {
