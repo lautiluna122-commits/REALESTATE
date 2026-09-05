@@ -27,6 +27,7 @@ import {
   getProjectLocation,
   createProjectPublication,
   publishProject,
+  createLead,
   ensureCompanyAccess,
 } from './services/projectService.js';
 
@@ -467,6 +468,43 @@ app.post('/api/projects/:projectId/publish', (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+app.post('/api/projects/:projectId/leads', (req, res) => {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : null;
+  const { unitId = null } = req.body || {};
+
+  if (name.length < 2 || name.length > 120) {
+    return res.status(400).json({ message: 'name must be between 2 and 120 characters' });
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    return res.status(400).json({ message: 'valid email is required' });
+  }
+
+  if (phone !== null && (phone.length > 40 || phone.length === 0)) {
+    return res.status(400).json({ message: 'phone must be a non-empty value up to 40 characters' });
+  }
+
+  if (unitId !== null && typeof unitId !== 'string') {
+    return res.status(400).json({ message: 'unitId must be a string or null' });
+  }
+
+  try {
+    const lead = createLead({
+      name,
+      email,
+      phone,
+      projectId: req.params.projectId,
+      unitId,
+    });
+    return res.status(201).json(lead);
+  } catch (error) {
+    const status = /not found/i.test(error.message) ? 404 : 400;
+    return res.status(status).json({ message: error.message });
   }
 });
 
