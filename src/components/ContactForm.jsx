@@ -1,6 +1,8 @@
 import { useState } from 'react';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api').replace(/\/$/, '');
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+const defaultApiBaseUrl = import.meta.env.DEV ? 'http://localhost:4000/api' : '/api';
+const API_BASE_URL = (configuredApiBaseUrl || defaultApiBaseUrl).replace(/\/$/, '');
 
 export default function ContactForm({ projectId, unitId = null, onSuccess }) {
   const [form, setForm] = useState({ name: '', email: '' });
