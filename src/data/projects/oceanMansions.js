@@ -10,6 +10,8 @@ import {
   UNIT_STATUS,
 } from '../../domain/platformModels.js';
 
+const publicAsset = (path) => `${import.meta.env.BASE_URL}${path}`;
+
 const statusMap = {
   Disponible: UNIT_STATUS.AVAILABLE,
   Reservado: UNIT_STATUS.RESERVED,
@@ -39,26 +41,38 @@ export const oceanAmenities = [
   createAmenity({
     id: 'amenity-pool',
     name: 'Pool Deck',
-    description: 'Deck infinito con vista al mar y solárium.',
+    description: 'Piscina exterior, deck infinito y solárium orientados al mar.',
     category: 'recreation',
   }),
   createAmenity({
     id: 'amenity-wellness',
     name: 'Wellness Club',
-    description: 'Gimnasio, spa y sala de tratamiento.',
+    description: 'Gimnasio, spa y espacios de tratamiento pensados para el bienestar diario.',
     category: 'wellness',
   }),
   createAmenity({
     id: 'amenity-sky-lounge',
     name: 'Sky Lounge',
-    description: 'Terraza social para eventos y atardeceres.',
+    description: 'Terraza social privada para encuentros, eventos y atardeceres.',
     category: 'social',
+  }),
+  createAmenity({
+    id: 'amenity-beach-club',
+    name: 'Beach Club',
+    description: 'Experiencia costera integrada al proyecto, con espacios de descanso y encuentro.',
+    category: 'recreation',
   }),
   createAmenity({
     id: 'amenity-lobby',
     name: 'Residents Lobby',
-    description: 'Lobby de ingreso con atención y lounges privados.',
+    description: 'Lobby de ingreso con recepción, lounges privados y acceso controlado.',
     category: 'entry',
+  }),
+  createAmenity({
+    id: 'amenity-concierge',
+    name: 'Private Concierge',
+    description: 'Atención personalizada para residentes y servicios asociados al edificio.',
+    category: 'service',
   }),
 ];
 
@@ -86,7 +100,7 @@ export const oceanProjectConfig = createProjectConfig({
   project: 'residential',
   building: 'tower',
   units: 'sales',
-  amenities: ['pool', 'wellness', 'social', 'entry'],
+  amenities: ['pool', 'wellness', 'social', 'recreation', 'entry', 'service'],
   environment: ['ocean', 'beach', 'terrain', 'city'],
   location: ['coast', 'beach', 'city'],
   branding: {
@@ -108,7 +122,7 @@ export const oceanProjectPublication = createProjectPublication({
   publicUrl: '/proyecto/ocean-mansions',
   title: 'Ocean Mansions',
   description: 'Showroom inmobiliario 3D de Ocean Mansions en Punta del Este.',
-  thumbnail: '/assets/projects/ocean-mansions/thumbnail.jpg',
+  thumbnail: publicAsset('assets/projects/ocean-mansions/thumbnail.jpg'),
   buttonText: 'Explorar proyecto 3D',
   isPublished: true,
   customDomain: '',
@@ -127,7 +141,7 @@ export const oceanMansionsProject = createProject({
       id: 'asset-ocean-building-model',
       name: 'Ocean Mansions Building Model',
       kind: 'glb',
-      path: '/assets/models/ocean-mansions.glb',
+      path: publicAsset('assets/models/ocean-mansions.glb'),
       projectId: 'ocean-mansions',
       isPrimary: true,
     },
