@@ -1,11 +1,48 @@
 import { createProjectAssetManifest, groupAssetsByKind } from './projectAssetModels';
 
-export const SHOWROOM_MANIFEST_VERSION = '1.0';
+export const SHOWROOM_MANIFEST_VERSION = '1.1';
+
+function deriveInventoryFromPlans(importedPlans = [], projectId = '') {
+  const seen = new Set();
+  const derived = [];
+
+  for (const plan of importedPlans) {
+    for (const entity of plan.entities ?? []) {
+      if (entity?.type !== 'unit' || !entity.label) continue;
+      const number = String(entity.label);
+      if (seen.has(number)) continue;
+      seen.add(number);
+      const numeric = Number(number);
+      const floor = plan.floor ?? (Number.isFinite(numeric) && numeric >= 100 ? Math.floor(numeric / 100) : null);
+      derived.push({
+        id: `unit-${number}`,
+        number,
+        floor,
+        surface: null,
+        bedrooms: null,
+        bathrooms: null,
+        terrace: null,
+        price: null,
+        currency: 'USD',
+        status: 'AVAILABLE',
+        plan: plan.sourceName ?? '',
+        modelRef: '',
+        images: [],
+        projectId,
+        provenance: { source: 'plan-import', confidence: entity.confidence ?? null },
+      });
+    }
+  }
+
+  return derived;
+}
 
 export function createShowroomManifest({ project, importedPlans = [], assets = [] } = {}) {
   const projectId = project?.id ?? '';
   const allAssets = [...assets];
   const grouped = groupAssetsByKind(allAssets);
+  const explicitInventory = Array.isArray(project?.units) ? project.units : [];
+  const inventorySource = explicitInventory.length ? explicitInventory : deriveInventoryFromPlans(importedPlans, projectId);
 
   return {
     version: SHOWROOM_MANIFEST_VERSION,
@@ -17,7 +54,7 @@ export function createShowroomManifest({ project, importedPlans = [], assets = [
       location: project?.location ?? null,
       config: project?.config ?? null,
     },
-    inventory: (project?.units ?? []).map((unit) => ({
+    inventory: inventorySource.map((unit) => ({
       id: unit.id,
       number: unit.number,
       floor: unit.floor,
@@ -31,6 +68,7 @@ export function createShowroomManifest({ project, importedPlans = [], assets = [
       plan: unit.plan,
       modelRef: unit.modelRef,
       images: unit.images ?? [],
+      provenance: unit.provenance ?? null,
     })),
     plans: importedPlans.map((plan) => ({
       sourceName: plan.sourceName,
@@ -55,6 +93,7 @@ export function createShowroomManifest({ project, importedPlans = [], assets = [
       stages: ['IMPORT', 'INTERPRET', 'REVIEW', 'MAP', 'GENERATE', 'PUBLISH'],
       rendererFallback: 'model → media → procedural',
       planToScene: 'plan entities → floor/unit mapping → showroom geometry',
+      inventorySource: explicitInventory.length ? 'project-data' : 'plan-import-derived',
     },
   };
 }
