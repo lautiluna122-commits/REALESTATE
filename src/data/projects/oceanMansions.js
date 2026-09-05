@@ -1,6 +1,7 @@
 import { apartmentData } from '../apartments';
 import {
   createAmenity,
+  createAsset,
   createCompany,
   createLocation,
   createProject,
@@ -9,6 +10,7 @@ import {
   createUnit,
   UNIT_STATUS,
 } from '../../domain/platformModels';
+import { createProjectAssetManifest } from '../../domain/projectAssetModels';
 
 const statusMap = {
   Disponible: UNIT_STATUS.AVAILABLE,
@@ -16,12 +18,7 @@ const statusMap = {
   Vendida: UNIT_STATUS.SOLD,
 };
 
-export const oceanCompany = createCompany({
-  id: 'company-ocean-group',
-  name: 'Ocean Group',
-  slug: 'ocean-group',
-  country: 'Uruguay',
-});
+export const oceanCompany = createCompany({ id: 'company-ocean-group', name: 'Ocean Group', slug: 'ocean-group', country: 'Uruguay' });
 
 export const oceanLocation = createLocation({
   id: 'location-punta-del-este',
@@ -29,58 +26,33 @@ export const oceanLocation = createLocation({
   district: 'Playa Mansa',
   city: 'Punta del Este',
   country: 'Uruguay',
-  coordinates: {
-    lat: -34.9,
-    lng: -54.9,
-  },
+  coordinates: { lat: -34.9, lng: -54.9 },
 });
 
 export const oceanAmenities = [
-  createAmenity({
-    id: 'amenity-pool',
-    name: 'Pool Deck',
-    description: 'Deck infinito con vista al mar y solárium.',
-    category: 'recreation',
-  }),
-  createAmenity({
-    id: 'amenity-wellness',
-    name: 'Wellness Club',
-    description: 'Gimnasio, spa y sala de tratamiento.',
-    category: 'wellness',
-  }),
-  createAmenity({
-    id: 'amenity-sky-lounge',
-    name: 'Sky Lounge',
-    description: 'Terraza social para eventos y atardeceres.',
-    category: 'social',
-  }),
-  createAmenity({
-    id: 'amenity-lobby',
-    name: 'Residents Lobby',
-    description: 'Lobby de ingreso con atención y lounges privados.',
-    category: 'entry',
-  }),
+  createAmenity({ id: 'amenity-pool', name: 'Pool Deck', description: 'Deck infinito con vista al mar y solárium.', category: 'recreation' }),
+  createAmenity({ id: 'amenity-wellness', name: 'Wellness Club', description: 'Gimnasio, spa y sala de tratamiento.', category: 'wellness' }),
+  createAmenity({ id: 'amenity-sky-lounge', name: 'Sky Lounge', description: 'Terraza social para eventos y atardeceres.', category: 'social' }),
+  createAmenity({ id: 'amenity-lobby', name: 'Residents Lobby', description: 'Lobby de ingreso con atención y lounges privados.', category: 'entry' }),
 ];
 
-export const oceanUnits = apartmentData.map((item) =>
-  createUnit({
-    id: item.id,
-    floor: item.floor,
-    number: item.number,
-    surface: item.area,
-    bedrooms: item.bedrooms,
-    bathrooms: item.bathrooms,
-    terrace: item.terrace,
-    price: item.price,
-    currency: 'USD',
-    status: statusMap[item.status] ?? UNIT_STATUS.HIDDEN,
-    description: `${item.bedrooms} dormitorios, ${item.bathrooms} baños y terraza de ${item.terrace} m².`,
-    plan: item.type,
-    modelRef: 'ocean-mansions-building-model',
-    images: [],
-    projectId: 'ocean-mansions',
-  }),
-);
+export const oceanUnits = apartmentData.map((item) => createUnit({
+  id: item.id,
+  floor: item.floor,
+  number: item.number,
+  surface: item.area,
+  bedrooms: item.bedrooms,
+  bathrooms: item.bathrooms,
+  terrace: item.terrace,
+  price: item.price,
+  currency: 'USD',
+  status: statusMap[item.status] ?? UNIT_STATUS.HIDDEN,
+  description: `${item.bedrooms} dormitorios, ${item.bathrooms} baños y terraza de ${item.terrace} m².`,
+  plan: item.type,
+  modelRef: 'ocean-mansions-building-model',
+  images: [],
+  projectId: 'ocean-mansions',
+}));
 
 export const oceanProjectConfig = createProjectConfig({
   project: 'residential',
@@ -89,17 +61,8 @@ export const oceanProjectConfig = createProjectConfig({
   amenities: ['pool', 'wellness', 'social', 'entry'],
   environment: ['ocean', 'beach', 'terrain', 'city'],
   location: ['coast', 'beach', 'city'],
-  branding: {
-    primaryColor: '#173b63',
-    secondaryColor: '#d4af69',
-    logo: 'ocean-mansions',
-  },
-  experience: {
-    walking: true,
-    floorSelection: true,
-    apartmentTour: true,
-    dayNight: true,
-  },
+  branding: { primaryColor: '#173b63', secondaryColor: '#d4af69', logo: 'ocean-mansions' },
+  experience: { walking: true, floorSelection: true, apartmentTour: true, dayNight: true },
 });
 
 export const oceanProjectPublication = createProjectPublication({
@@ -114,6 +77,36 @@ export const oceanProjectPublication = createProjectPublication({
   customDomain: '',
 });
 
+const oceanAssets = [
+  createAsset({
+    id: 'asset-ocean-building-model',
+    name: 'Ocean Mansions Building Model',
+    kind: 'buildingModel',
+    path: '/assets/models/ocean-mansions.glb',
+    projectId: 'ocean-mansions',
+    isPrimary: true,
+    source: 'upload',
+    status: 'READY',
+    metadata: { renderer: 'react-three-fiber', fallback: 'procedural' },
+  }),
+  createAsset({
+    id: 'asset-ocean-thumbnail',
+    name: 'Ocean Mansions thumbnail',
+    kind: 'thumbnail',
+    path: '/assets/projects/ocean-mansions/thumbnail.jpg',
+    projectId: 'ocean-mansions',
+    isPrimary: true,
+    source: 'upload',
+    status: 'READY',
+  }),
+];
+
+export const oceanMansionsAssetManifest = createProjectAssetManifest({
+  projectId: 'ocean-mansions',
+  assets: oceanAssets,
+  primary: { buildingModel: oceanAssets[0], thumbnail: oceanAssets[1] },
+});
+
 export const oceanMansionsProject = createProject({
   id: 'ocean-mansions',
   companyId: oceanCompany.id,
@@ -123,17 +116,12 @@ export const oceanMansionsProject = createProject({
   units: oceanUnits,
   amenities: oceanAmenities,
   assets: {
-    buildingModel: {
-      id: 'asset-ocean-building-model',
-      name: 'Ocean Mansions Building Model',
-      kind: 'glb',
-      path: '/assets/models/ocean-mansions.glb',
-      projectId: 'ocean-mansions',
-      isPrimary: true,
-    },
+    buildingModel: oceanAssets[0],
+    thumbnail: oceanAssets[1],
     plans: [],
     images: [],
     environment: [],
+    manifest: oceanMansionsAssetManifest,
   },
   publication: oceanProjectPublication,
   config: oceanProjectConfig,
