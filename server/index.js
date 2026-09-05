@@ -29,6 +29,7 @@ import {
   publishProject,
   createLead,
   ensureCompanyAccess,
+  getCompanyByApiKey,
 } from './services/projectService.js';
 
 const app = express();
@@ -37,6 +38,24 @@ const port = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
+
+function requireApiKey(req, res, next) {
+  const apiKey = req.header('x-api-key');
+  if (!apiKey) return res.status(401).json({ message: 'x-api-key header required' });
+
+  const company = getCompanyByApiKey(apiKey);
+  if (!company) return res.status(401).json({ message: 'invalid api key' });
+
+  req.company = company;
+  next();
+}
+
+function requireOwnCompany(req, res, next) {
+  if (req.company.id !== req.params.companyId) {
+    return res.status(403).json({ message: 'company mismatch' });
+  }
+  next();
+}
 
 // ============================================================
 // HEALTH CHECK
@@ -67,7 +86,9 @@ app.post('/api/admin/companies', (req, res) => {
   }
 });
 
-app.get('/api/admin/companies/:companyId/projects', (req, res) => {
+app.use('/api/admin', requireApiKey);
+
+app.get('/api/admin/companies/:companyId/projects', requireOwnCompany, (req, res) => {
   res.json(listProjectsByCompany(req.params.companyId));
 });
 
@@ -75,6 +96,9 @@ app.post('/api/admin/projects', (req, res) => {
   const payload = req.body;
   if (!payload.companyId || !payload.name || !payload.slug) {
     return res.status(400).json({ message: 'companyId, name and slug are required' });
+  }
+  if (payload.companyId !== req.company.id) {
+    return res.status(403).json({ message: 'company mismatch' });
   }
   try {
     const project = createProject(payload);
@@ -235,7 +259,9 @@ app.post('/api/admin/projects/:projectId/publish', (req, res) => {
 // COMPANY ROUTES - Tenant-specific access
 // ============================================================
 
-app.get('/api/company/:companyId/projects', (req, res) => {
+app.use('/api/company', requireApiKey);
+
+app.get('/api/company/:companyId/projects', requireOwnCompany, (req, res) => {
   try {
     res.json(listProjectsByCompany(req.params.companyId));
   } catch (error) {
@@ -243,7 +269,7 @@ app.get('/api/company/:companyId/projects', (req, res) => {
   }
 });
 
-app.get('/api/company/:companyId/projects/:projectId', (req, res) => {
+app.get('/api/company/:companyId/projects/:projectId', requireOwnCompany, (req, res) => {
   try {
     const project = getProjectById(req.params.projectId);
     if (!project) return res.status(404).json({ message: 'Project not found' });

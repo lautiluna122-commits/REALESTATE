@@ -32,17 +32,39 @@ function ensureLeadsTable() {
 
 ensureLeadsTable();
 
+function ensureCompanyApiKeys() {
+  const columns = db.prepare('PRAGMA table_info(companies)').all();
+  if (!columns.some((column) => column.name === 'apiKey')) {
+    db.exec('ALTER TABLE companies ADD COLUMN apiKey TEXT');
+  }
+
+  const companiesWithoutKeys = db
+    .prepare("SELECT id FROM companies WHERE apiKey IS NULL OR apiKey = ''")
+    .all();
+  const setApiKey = db.prepare('UPDATE companies SET apiKey = ? WHERE id = ?');
+  for (const company of companiesWithoutKeys) {
+    setApiKey.run(crypto.randomUUID(), company.id);
+  }
+}
+
+ensureCompanyApiKeys();
+
 export function createCompany({ name, slug, status = 'ACTIVE' }) {
   const id = crypto.randomUUID();
+  const apiKey = crypto.randomUUID();
   const now = new Date().toISOString();
   db.prepare(
-    'INSERT INTO companies (id, name, slug, status, createdAt) VALUES (?, ?, ?, ?, ?)',
-  ).run(id, name, slug, status, now);
-  return { id, name, slug, status, createdAt: now };
+    'INSERT INTO companies (id, name, slug, status, createdAt, apiKey) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(id, name, slug, status, now, apiKey);
+  return { id, name, slug, status, createdAt: now, apiKey };
+}
+
+export function getCompanyByApiKey(apiKey) {
+  return db.prepare('SELECT * FROM companies WHERE apiKey = ?').get(apiKey);
 }
 
 export function listCompanies() {
-  return db.prepare('SELECT * FROM companies ORDER BY createdAt DESC').all();
+  return db.prepare('SELECT id, name, slug, status, createdAt FROM companies ORDER BY createdAt DESC').all();
 }
 
 export function createProject({ companyId, name, slug, description = '', status = 'DRAFT', location = null, branding = null, buildingReference = null, environmentConfig = null, publicationConfig = null }) {
