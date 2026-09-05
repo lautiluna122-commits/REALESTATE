@@ -10,6 +10,8 @@ import {
   UNIT_STATUS,
 } from '../../domain/platformModels';
 
+const publicAsset = (path) => `${import.meta.env.BASE_URL}${path}`;
+
 const statusMap = {
   Disponible: UNIT_STATUS.AVAILABLE,
   Reservado: UNIT_STATUS.RESERVED,
@@ -120,7 +122,7 @@ export const oceanProjectPublication = createProjectPublication({
   publicUrl: '/proyecto/ocean-mansions',
   title: 'Ocean Mansions',
   description: 'Showroom inmobiliario 3D de Ocean Mansions en Punta del Este.',
-  thumbnail: '/assets/projects/ocean-mansions/thumbnail.jpg',
+  thumbnail: publicAsset('assets/projects/ocean-mansions/thumbnail.jpg'),
   buttonText: 'Explorar proyecto 3D',
   isPublished: true,
   customDomain: '',
@@ -139,7 +141,7 @@ export const oceanMansionsProject = createProject({
       id: 'asset-ocean-building-model',
       name: 'Ocean Mansions Building Model',
       kind: 'glb',
-      path: '/assets/models/ocean-mansions.glb',
+      path: publicAsset('assets/models/ocean-mansions.glb'),
       projectId: 'ocean-mansions',
       isPrimary: true,
     },
