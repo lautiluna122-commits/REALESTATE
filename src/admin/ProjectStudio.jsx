@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import './project-studio.css';
+import { normalizePlanImport, buildShowroomImportPreview } from '../importer/planIngestion';
 
 const STEPS = ['Proyecto', 'Plano', 'Revisión', 'Showroom', 'Publicar'];
 const ACCEPTED = ['PDF', 'PNG', 'JPG', 'JPEG', 'SVG'];
@@ -10,22 +11,19 @@ function formatSize(bytes = 0) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function parseFilename(name = '') {
-  const clean = name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ');
-  return clean.replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
 export default function ProjectStudio() {
   const [step, setStep] = useState(0);
   const [projectName, setProjectName] = useState('Nuevo proyecto');
   const [developer, setDeveloper] = useState('');
   const [location, setLocation] = useState('');
   const [files, setFiles] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [dragging, setDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [published, setPublished] = useState(false);
 
   const slug = useMemo(() => projectName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'nuevo-proyecto', [projectName]);
+  const preview = useMemo(() => plans.length ? buildShowroomImportPreview(plans[0]) : null, [plans]);
 
   function addFiles(list) {
     const next = Array.from(list).filter((file) => ACCEPTED.includes(file.name.split('.').pop()?.toUpperCase()));
@@ -35,14 +33,16 @@ export default function ProjectStudio() {
 
   function processPlan() {
     setProcessing(true);
+    const normalized = files.map((file, index) => normalizePlanImport({ sourceName: file.name, page: index + 1, provenance: { source: 'browser-upload', adapter: 'plan-ingestion-v1' } }));
     window.setTimeout(() => {
+      setPlans(normalized);
       setProcessing(false);
       setStep(2);
     }, 900);
   }
 
   function generate() {
-    localStorage.setItem('realestate:project-draft', JSON.stringify({ projectName, developer, location, slug, sourceFiles: files.map(({ name, size, type }) => ({ name, size, type })) }));
+    localStorage.setItem('realestate:project-draft', JSON.stringify({ projectName, developer, location, slug, sourceFiles: files.map(({ name, size, type }) => ({ name, size, type })), importedPlans: plans }));
     setStep(4);
   }
 
@@ -75,8 +75,8 @@ export default function ProjectStudio() {
         </>}
 
         {step === 2 && <>
-          <div className="section-heading"><span>03 / Revisión</span><h2>Antes de generar, validamos la estructura.</h2><p>La capa de ingestión normaliza plantas, unidades, superficies y metadatos para que el renderer no dependa del archivo original.</p></div>
-          <div className="review-grid"><div className="review-preview"><div className="blueprint"><i /><i /><i /><i /><i /><i /><span>PLANTA / PREVIEW</span></div></div><div className="review-data"><div><span>Proyecto</span><b>{projectName || 'Sin nombre'}</b></div><div><span>Fuente</span><b>{files.length} archivo{files.length === 1 ? '' : 's'}</b></div><div><span>Unidades</span><b>Listas para validar</b></div><div><span>Renderer</span><b>Independiente del plano</b></div><div className="review-note"><b>IA / OCR / CAD</b><p>La arquitectura deja este procesamiento desacoplado: hoy podemos revisar y normalizar; el motor automático se incorpora después sin cambiar el showroom.</p></div></div></div>
+          <div className="section-heading"><span>03 / Revisión</span><h2>Antes de generar, validamos la estructura.</h2><p>La capa de ingestión ya entrega un modelo normalizado. En producción, OCR/visión/CAD puede alimentar exactamente este mismo contrato.</p></div>
+          <div className="review-grid"><div className="review-preview"><div className="blueprint"><i /><i /><i /><i /><i /><i /><span>PLANTA / PREVIEW</span></div></div><div className="review-data"><div><span>Proyecto</span><b>{projectName || 'Sin nombre'}</b></div><div><span>Fuente</span><b>{files.length} archivo{files.length === 1 ? '' : 's'}</b></div><div><span>Piso detectado</span><b>{preview?.floor ?? 'Pendiente de lectura'}</b></div><div><span>Unidades detectadas</span><b>{preview?.unitsDetected?.length ?? 0}</b></div><div><span>Ambientes</span><b>{preview?.roomsDetected?.length ?? 0}</b></div><div><span>Confianza inicial</span><b>{preview?.confidence ?? 0}%</b></div><div className="review-note"><b>Control humano</b><p>La revisión es intencional: ningún plano complejo debe publicar datos comerciales sin validación. La automatización aumenta la velocidad; la revisión protege la calidad.</p></div></div></div>
           <div className="actions"><button className="ghost" onClick={() => setStep(1)}>← Volver al plano</button><button className="primary" onClick={() => setStep(3)}>Aprobar estructura →</button></div>
         </>}
 
