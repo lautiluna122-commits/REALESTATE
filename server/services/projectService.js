@@ -13,6 +13,25 @@ const fromJson = (value) => {
   }
 };
 
+function ensureLeadsTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS leads (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT,
+      projectId TEXT NOT NULL,
+      unitId TEXT,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY(projectId) REFERENCES projects(id),
+      FOREIGN KEY(unitId) REFERENCES units(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_leads_project_createdAt ON leads(projectId, createdAt DESC);
+  `);
+}
+
+ensureLeadsTable();
+
 export function createCompany({ name, slug, status = 'ACTIVE' }) {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -132,11 +151,9 @@ export function listProjectBuildings(projectId) {
 export function createFloor({ projectId, buildingId, number, name = '', metadata = null }) {
   if (!projectId || !buildingId) throw new Error('projectId and buildingId are required');
   
-  // Verify project exists
   const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId);
   if (!project) throw new Error('Project not found');
   
-  // Verify building exists AND belongs to the project
   const building = db.prepare('SELECT projectId FROM buildings WHERE id = ?').get(buildingId);
   if (!building) throw new Error('Building not found');
   if (building.projectId !== projectId) {
@@ -164,18 +181,15 @@ export function createUnit({ projectId, buildingId, floorId, number, surface, be
     throw new Error('projectId, buildingId, and floorId are required');
   }
 
-  // Verify project exists
   const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId);
   if (!project) throw new Error('Project not found');
 
-  // Verify building exists AND belongs to the project
   const building = db.prepare('SELECT projectId FROM buildings WHERE id = ?').get(buildingId);
   if (!building) throw new Error('Building not found');
   if (building.projectId !== projectId) {
     throw new Error('Building does not belong to this project');
   }
 
-  // Verify floor exists, belongs to the building, AND belongs to the project
   const floor = db.prepare('SELECT projectId, buildingId FROM floors WHERE id = ?').get(floorId);
   if (!floor) throw new Error('Floor not found');
   if (floor.buildingId !== buildingId) {
@@ -247,7 +261,6 @@ export function updateUnit(projectId, unitId, updates) {
   const current = db.prepare('SELECT * FROM units WHERE id = ? AND projectId = ?').get(unitId, projectId);
   if (!current) return null;
 
-  // Immutable fields - cannot be changed
   const immutableFields = ['projectId', 'buildingId', 'floorId'];
   const attemptedMutation = immutableFields.filter((field) => updates.hasOwnProperty(field) && updates[field] !== current[field]);
   
@@ -258,7 +271,6 @@ export function updateUnit(projectId, unitId, updates) {
   const next = {
     ...normalizeUnit(current),
     ...updates,
-    // Force immutability
     projectId: current.projectId,
     buildingId: current.buildingId,
     floorId: current.floorId,
@@ -381,6 +393,26 @@ export function createProjectPublication({ projectId, publicSlug, publicUrl, tit
   ).run(id, projectId, publicSlug, publicUrl, title, description, thumbnail, buttonText, isPublished ? 1 : 0, customDomain, status, now);
 
   return { id, projectId, publicSlug, publicUrl, title, description, thumbnail, buttonText, isPublished, customDomain, status, createdAt: now };
+}
+
+export function createLead({ name, email, phone = null, projectId, unitId = null }) {
+  if (!projectId) throw new Error('projectId is required');
+
+  const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId);
+  if (!project) throw new Error('Project not found');
+
+  if (unitId) {
+    const unit = db.prepare('SELECT id FROM units WHERE id = ? AND projectId = ?').get(unitId, projectId);
+    if (!unit) throw new Error('Unit not found for this project');
+  }
+
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  db.prepare(
+    'INSERT INTO leads (id, name, email, phone, projectId, unitId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).run(id, name, email, phone || null, projectId, unitId || null, createdAt);
+
+  return { id, name, email, phone: phone || null, projectId, unitId: unitId || null, createdAt };
 }
 
 export function publishProject(projectId, payload = {}) {
