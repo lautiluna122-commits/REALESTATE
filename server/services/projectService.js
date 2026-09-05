@@ -28,6 +28,11 @@ function ensureLeadsTable() {
     );
     CREATE INDEX IF NOT EXISTS idx_leads_project_createdAt ON leads(projectId, createdAt DESC);
   `);
+
+  const columns = db.prepare('PRAGMA table_info(leads)').all();
+  if (!columns.some((column) => column.name === 'message')) {
+    db.exec('ALTER TABLE leads ADD COLUMN message TEXT');
+  }
 }
 
 ensureLeadsTable();
@@ -417,24 +422,26 @@ export function createProjectPublication({ projectId, publicSlug, publicUrl, tit
   return { id, projectId, publicSlug, publicUrl, title, description, thumbnail, buttonText, isPublished, customDomain, status, createdAt: now };
 }
 
-export function createLead({ name, email, phone = null, projectId, unitId = null }) {
+export function createLead({ name, email, phone = null, message = '', projectId, unitId = null }) {
   if (!projectId) throw new Error('projectId is required');
 
-  const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId);
+  const project = db.prepare('SELECT id FROM projects WHERE id = ? OR slug = ? LIMIT 1').get(projectId, projectId);
   if (!project) throw new Error('Project not found');
 
+  const resolvedProjectId = project.id;
+
   if (unitId) {
-    const unit = db.prepare('SELECT id FROM units WHERE id = ? AND projectId = ?').get(unitId, projectId);
+    const unit = db.prepare('SELECT id FROM units WHERE id = ? AND projectId = ?').get(unitId, resolvedProjectId);
     if (!unit) throw new Error('Unit not found for this project');
   }
 
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   db.prepare(
-    'INSERT INTO leads (id, name, email, phone, projectId, unitId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  ).run(id, name, email, phone || null, projectId, unitId || null, createdAt);
+    'INSERT INTO leads (id, name, email, phone, message, projectId, unitId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  ).run(id, name, email, phone || null, message || '', resolvedProjectId, unitId || null, createdAt);
 
-  return { id, name, email, phone: phone || null, projectId, unitId: unitId || null, createdAt };
+  return { id, name, email, phone: phone || null, message: message || '', projectId: resolvedProjectId, unitId: unitId || null, createdAt };
 }
 
 export function publishProject(projectId, payload = {}) {

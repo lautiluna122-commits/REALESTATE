@@ -5,7 +5,7 @@ const defaultApiBaseUrl = import.meta.env.DEV ? 'http://localhost:4000/api' : '/
 const API_BASE_URL = (configuredApiBaseUrl || defaultApiBaseUrl).replace(/\/$/, '');
 
 export default function ContactForm({ projectId, unitId = null, onSuccess }) {
-  const [form, setForm] = useState({ name: '', email: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
 
@@ -35,7 +35,7 @@ export default function ContactForm({ projectId, unitId = null, onSuccess }) {
       const response = await fetch(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, unitId }),
+        body: JSON.stringify({ name, email, phone: form.phone.trim() || null, message: form.message.trim(), unitId }),
       });
 
       const data = await response.json().catch(() => ({}));
@@ -45,7 +45,7 @@ export default function ContactForm({ projectId, unitId = null, onSuccess }) {
 
       setStatus('success');
       setMessage('Recibimos tu solicitud. Te contactaremos a la brevedad.');
-      setForm({ name: '', email: '' });
+      setForm({ name: '', email: '', phone: '', message: '' });
       onSuccess?.(data);
     } catch (error) {
       setStatus('error');
@@ -84,6 +84,16 @@ export default function ContactForm({ projectId, unitId = null, onSuccess }) {
           maxLength={254}
           required
         />
+      </div>
+
+      <div className="contact-form__field">
+        <label htmlFor="contact-phone">Teléfono</label>
+        <input id="contact-phone" name="phone" type="tel" value={form.phone} onChange={updateField('phone')} autoComplete="tel" placeholder="Tu teléfono" maxLength={40} />
+      </div>
+
+      <div className="contact-form__field">
+        <label htmlFor="contact-message">Mensaje</label>
+        <textarea id="contact-message" name="message" value={form.message} onChange={updateField('message')} placeholder="¿Qué te gustaría conocer?" rows="3" />
       </div>
 
       <button type="submit" disabled={status === 'submitting'}>

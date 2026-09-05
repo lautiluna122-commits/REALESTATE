@@ -501,6 +501,7 @@ app.post('/api/projects/:projectId/leads', (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : null;
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   const { unitId = null } = req.body || {};
 
   if (name.length < 2 || name.length > 120) {
@@ -524,6 +525,7 @@ app.post('/api/projects/:projectId/leads', (req, res) => {
       name,
       email,
       phone,
+      message,
       projectId: req.params.projectId,
       unitId,
     });

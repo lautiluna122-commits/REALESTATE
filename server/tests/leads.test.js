@@ -94,7 +94,7 @@ test('POST /api/projects/:projectId/leads guarda correctamente el lead', async (
 
     const db = new Database(dataPath, { readonly: true });
     try {
-      const row = db.prepare('SELECT id, name, email, phone, projectId, unitId, createdAt FROM leads WHERE id = ?').get(lead.id);
+      const row = db.prepare('SELECT id, name, email, phone, message, projectId, unitId, createdAt FROM leads WHERE id = ?').get(lead.id);
       assert.deepEqual(row, lead);
     } finally {
       db.close();
