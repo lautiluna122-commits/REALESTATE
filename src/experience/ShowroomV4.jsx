@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { ContactShadows, Environment, OrbitControls, RoundedBox, Text } from '@react-three/drei';
+import { ContactShadows, Environment, OrbitControls, RoundedBox, Text, Stats } from '@react-three/drei';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { getProjectById } from '../platform/projectRegistry';
@@ -43,60 +43,28 @@ function Tower({ floor, onUnit, night }) {
   const count = Math.max(7, floors.length || 7);
   const floorHeight = 2.55;
   return <group>
-    <RoundedBox args={[22, 5.5, 14.5]} radius={.7} smoothness={6} position={[0, 2.75, 0]} castShadow receiveShadow><meshStandardMaterial color="#8e8d88" roughness={.55}/></RoundedBox>
-    <RoundedBox args={[20.5, .85, 13.2]} radius={.28} position={[0, 5.85, 0]} castShadow><meshStandardMaterial color="#e1dbd1" roughness={.34}/></RoundedBox>
-    {Array.from({ length: count }).map((_, i) => {
-      const f = floors[i] ?? i + 1;
-      const y = 7 + i * floorHeight;
-      const active = floor == null || floor === f;
-      return <group key={f} position={[0, y, 0]}>
-        <mesh position={[0, 0, 0]} castShadow><boxGeometry args={[21.1, .13, 13.8]}/><meshStandardMaterial color={active ? stone : '#696c6a'} transparent opacity={active ? 1 : .18}/></mesh>
-        <mesh position={[0, -.22, 6.95]}><boxGeometry args={[20.5, 2.2, .16]}/><meshStandardMaterial color="#8e8b84" roughness={.42}/></mesh>
-        {[-7.5, -3.75, 0, 3.75, 7.5].map((x, j) => {
-          const u = units.find((item) => item.floor === f && Number(String(item.number).slice(-1)) === j + 1);
-          const selected = Boolean(u && floor === f);
-          return <group key={j} position={[x, .86, 6.83]}>
-            <Window active={selected} night={night} />
-            <mesh position={[0, -.96, .2]}><boxGeometry args={[3.15, .1, 1.15]}/><meshStandardMaterial color="#8a8379" roughness={.48}/></mesh>
-            {u && <mesh position={[0, 0, .22]} onClick={(e) => { e.stopPropagation(); onUnit(u); }}><boxGeometry args={[3.1, 1.55, .12]}/><meshStandardMaterial transparent opacity={0}/></mesh>}
-            {selected && <Text position={[0, 1.22, .3]} fontSize={.24} color="#f7ead2" outlineWidth={.03} outlineColor="#182527">{u.number}</Text>}
-          </group>;
-        })}
-        {[-9.5, 9.5].map((x) => <mesh key={x} position={[x, .9, 6.58]}><boxGeometry args={[.1, 2, .3]}/><meshStandardMaterial color="#515655" metalness={.8} roughness={.2}/></mesh>)}
-      </group>;
-    })}
-    <RoundedBox args={[17.2, .45, 6.8]} radius={.25} position={[0, 6.2, 8.45]} castShadow><meshStandardMaterial color="#c6b7a2" roughness={.68}/></RoundedBox>
-    <RoundedBox args={[15, .14, 5.8]} radius={.14} position={[0, 6.47, 8.45]}><meshStandardMaterial color="#5e9fa7" roughness={.07} metalness={.25}/></RoundedBox>
-    <mesh position={[0, 8.62, 0]} castShadow><boxGeometry args={[18.8, .25, 11.5]}/><meshStandardMaterial color="#ddd5ca" roughness={.4}/></mesh>
-    <RoundedBox args={[17.8, 2.8, 10.8]} radius={.25} position={[0, 10.15, 0]} castShadow><meshStandardMaterial color="#aaa8a2" roughness={.32}/></RoundedBox>
-    <Window position={[0, 10.15, -5.48]} size={[16.4, 2.5, .12]} night={night}/>
-    <Text position={[0, 11.65, -5.62]} fontSize={.42} color="#eee7db" letterSpacing={.08}>OCEAN MANSIONS</Text>
+    <mesh position={[0, (count * floorHeight) / 2, 0]} castShadow receiveShadow><boxGeometry args={[15, count * floorHeight, 8]}/><meshStandardMaterial color={stone} roughness={.42}/></mesh>
+    {Array.from({ length: count }).map((_, i) => <group key={i} position={[0, (i + .5) * floorHeight, 0]}>
+      <mesh position={[0, 0, 4.05]}><boxGeometry args={[15.2, .12, .08]}/><meshStandardMaterial color="#313b3d" metalness={.65} roughness={.28}/></mesh>
+      {[-5.4, -2.7, 0, 2.7, 5.4].map((x) => <Window key={x} position={[x, 0, 4.12]} active={floor === i + 1} night={night}/>) }
+    </group>)}
+    <mesh position={[0, -.08, 0]} receiveShadow><boxGeometry args={[18, .16, 11]}/><meshStandardMaterial color="#b6aa9b" roughness={.7}/></mesh>
   </group>;
 }
 
 function Site({ night }) {
   return <group>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -.15, 0]} receiveShadow><planeGeometry args={[220, 220]}/><meshStandardMaterial color={night ? '#101b1d' : '#78867d'} roughness={1}/></mesh>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -.05, 72]}><planeGeometry args={[190, 72]}/><meshStandardMaterial color="#3b7e8b" roughness={.5}/></mesh>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .01, 35]}><planeGeometry args={[18, 92]}/><meshStandardMaterial color="#d3c7b8" roughness={.82}/></mesh>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-12, .02, 35]}><planeGeometry args={[6, 92]}/><meshStandardMaterial color="#9fa69b" roughness={1}/></mesh>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[12, .02, 35]}><planeGeometry args={[6, 92]}/><meshStandardMaterial color="#9fa69b" roughness={1}/></mesh>
-    <Pool/>
-    {[-29, -22, 22, 29].map((x) => <Palm key={x} position={[x, 0, 4 + Math.abs(x) % 9]} scale={1.05}/>) }
-    {[-18, 18].map((x) => <Palm key={x} position={[x, 0, 28]} scale={.9}/>) }
-    {[-14, -9, 9, 14].map((x) => <Shrub key={x} position={[x, .1, 7]} scale={1.05}/>) }
-    {[-25, 25].map((x) => <Shrub key={x} position={[x, .1, 17]}/>) }
-    <RoundedBox args={[20, .24, 8]} radius={.55} position={[0, .2, -1]} castShadow><meshStandardMaterial color="#d6ccbc" roughness={.72}/></RoundedBox>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .33, -1]}><planeGeometry args={[17.5, 5.8]}/><meshStandardMaterial color="#6b8f82" roughness={.82}/></mesh>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[120, 120]}/><meshStandardMaterial color={night ? '#182326' : '#c7c0b5'} roughness={.95}/></mesh>
+    <Pool />
+    {[[-18, 0, 15], [18, 0, 15], [-20, 0, -15], [20, 0, -12]].map((p, i) => <Palm key={i} position={p} scale={1.2}/>) }
+    {[[-11, .3, 14], [12, .3, 13], [-16, .3, -8], [16, .3, -7], [-13, .3, -18], [13, .3, -18]].map((p, i) => <Shrub key={i} position={p} scale={1.1}/>) }
   </group>;
 }
 
 function Interior({ night }) {
   return <group>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[16, 13]}/><meshStandardMaterial color="#d9d1c5" roughness={.52}/></mesh>
-    <mesh position={[0, 3.7, -6.5]}><boxGeometry args={[16, 7.4, .15]}/><meshStandardMaterial color="#f0ebe3" roughness={.72}/></mesh>
-    <Window position={[0, 3.25, -6.38]} size={[14.6, 5.8, .1]} night={night}/>
-    <RoundedBox args={[5.5, .6, 2.35]} radius={.2} position={[-2.1, 1.05, .8]} castShadow><meshStandardMaterial color="#686967" roughness={.84}/></RoundedBox>
+    <mesh position={[0, 2.6, -4]} receiveShadow><boxGeometry args={[14, 5.2, .2]}/><meshStandardMaterial color="#e5dfd4" roughness={.7}/></mesh>
+    <mesh position={[0, .05, 0]} receiveShadow><boxGeometry args={[14, .1, 10]}/><meshStandardMaterial color="#c8bca9" roughness={.72}/></mesh>
     <RoundedBox args={[5.1, .16, 2]} radius={.1} position={[-2.1, 1.4, .8]}><meshStandardMaterial color="#b99b76" roughness={.68}/></RoundedBox>
     <RoundedBox args={[3.4, .18, 1.5]} radius={.08} position={[3, 1.1, -1.35]} castShadow><meshStandardMaterial color="#ded5c8" roughness={.6}/></RoundedBox>
     {[2.2, 3.8].map((x) => <mesh key={x} position={[x, .55, -1.35]}><cylinderGeometry args={[.07, .07, 1, 12]}/><meshStandardMaterial color="#313a3b" metalness={.8} roughness={.22}/></mesh>)}
@@ -123,6 +91,7 @@ function Scene({ mode, floor, night, onUnit }) {
     if (controls.current) controls.current.target.lerp(new THREE.Vector3(...t), .06);
   });
   return <Canvas shadows dpr={[1, 1.8]} camera={{ position: [48, 28, 55], fov: 30 }} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+    {import.meta.env.DEV && <Stats />}
     <color attach="background" args={[night ? '#071318' : '#a9c9cc']}/>
     <fog attach="fog" args={[night ? '#071318' : '#a9c9cc', 55, 165]}/>
     <ambientLight intensity={night ? .22 : 1.05}/>
