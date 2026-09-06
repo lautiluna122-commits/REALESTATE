@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { getProjectBySlug, getProjectUnits } from '../platform/projectRegistry';
 import './admin-dashboard.css';
+import './publication-links.css';
 
 const project = getProjectBySlug('ocean-mansions');
 const units = getProjectUnits(project);
@@ -12,7 +13,6 @@ const nav = [
   ['overview', 'Resumen'], ['content', 'Contenido'], ['inventory', 'Inventario'],
   ['experience', 'Experiencia'], ['branding', 'Branding'], ['plans', 'Planos'], ['publish', 'Publicar'],
 ];
-
 const contentCards = [
   ['3D', 'Modelo del edificio', 'GLB / GLTF', 'Listo', true], ['IMG', 'Renders exteriores', 'JPG / WEBP', 'Agregar renders', false],
   ['INT', 'Interiores', 'JPG / WEBP', 'Agregar interiores', false], ['360', 'Tours 360°', '360 / vídeo', 'Agregar tour', false],
@@ -35,7 +35,6 @@ export default function AdminDashboard() {
       {section === 'branding' && <Branding />}{section === 'plans' && <Plans units={units} />}{section === 'publish' && <Publish />}
     </main></div>;
 }
-
 function Overview({ available, reserved, units, setSection }) { return <div className="dashboard-grid">
   <section className="project-hero"><div className="hero-copy"><span className="pill">SHOWROOM ACTIVO</span><h2>{project.name}</h2><p>Playa Mansa · Punta del Este · Uruguay</p><div className="hero-actions"><a href={`/proyecto/${slug}`}>Abrir showroom</a><button onClick={() => setSection('experience')}>Editar experiencia</button></div></div><div className="hero-visual"><div className="tower-art"><div className="tower-glow" /><div className="tower-lines" /></div><span>3D EXPERIENCE</span></div></section>
   <section className="metrics"><Metric title="Unidades" value={units} detail={`${available} disponibles`} /><Metric title="Reservadas" value={reserved} detail="Estado comercial" /><Metric title="Contenido" value="68%" detail="del proyecto listo" /><Metric title="Experiencia" value="92%" detail="configurada" /></section>
