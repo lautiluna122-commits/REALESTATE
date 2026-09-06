@@ -8,7 +8,7 @@ import { getProjectBySlug } from './platform/projectRegistry';
 import { getShowroomTheme } from './experience/showroomTheme';
 
 const pathname = typeof window !== 'undefined' ? window.location.pathname.replace(/\/+$/, '') : '/';
-const slug = pathname.match(/^\/proyecto\/([^/]+)$/)?.[1] ?? 'ocean-mansions';
+const slug = pathname.match(/^\/(?:proyecto|embed|cliente)\/([^/]+)$/)?.[1] ?? 'ocean-mansions';
 const project = getProjectBySlug(slug);
 const theme = getShowroomTheme(project);
 
