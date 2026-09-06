@@ -1,4 +1,5 @@
 import { oceanMansionsProject } from '../data/projects/oceanMansions';
+import { mergeInventory } from './projectStore';
 
 export const projectCatalog = [oceanMansionsProject];
 
@@ -10,9 +11,10 @@ export function getProjectById(projectId = 'ocean-mansions') {
   return projectRegistry[projectId] ?? projectCatalog[0];
 }
 
-export function getProjectUnits(projectId = 'ocean-mansions') {
-  const project = getProjectById(projectId);
-  return project.units ?? [];
+export function getProjectUnits(projectOrId = 'ocean-mansions') {
+  const project = typeof projectOrId === 'string' ? getProjectById(projectOrId) : projectOrId;
+  const units = project?.units ?? [];
+  return mergeInventory(project?.slug ?? project?.id ?? 'ocean-mansions', units);
 }
 
 function inventoryFromImportedPlans(plans = []) {
@@ -49,7 +51,10 @@ function inventoryFromImportedPlans(plans = []) {
 
 export function getProjectBySlug(slug = 'ocean-mansions') {
   const catalogProject = projectCatalog.find((project) => project.slug === slug || project.publication?.publicSlug === slug);
-  if (catalogProject) return catalogProject;
+  if (catalogProject) return {
+    ...catalogProject,
+    units: mergeInventory(catalogProject.slug, catalogProject.units ?? []),
+  };
 
   if (typeof window !== 'undefined') {
     try {
@@ -66,7 +71,7 @@ export function getProjectBySlug(slug = 'ocean-mansions') {
           companyId: manifest.project?.companyId ?? '',
           location: manifest.project?.location ?? null,
           config: manifest.project?.config ?? {},
-          units: mappedInventory,
+          units: mergeInventory(slug, mappedInventory),
           amenities: [],
           assets: manifest.assets ?? {},
           plans: manifest.plans ?? [],
