@@ -1,8 +1,9 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Environment, Html, OrbitControls, useGLTF, useTexture } from '@react-three/drei';
+import { Environment, OrbitControls, useGLTF, useTexture } from '@react-three/drei';
 import { Suspense, useMemo, useRef, useState } from 'react';
 import { Vector3 } from 'three';
 import { getProjectBySlug, getProjectUnits } from '../platform/projectRegistry';
+import { getShowroomEngine, resolveShowroomAsset } from './showroomEngine';
 import './apartment-interior.css';
 
 const ROOMS = [
@@ -21,20 +22,14 @@ function SafeGLTF({ src }) {
 
 function Panorama({ src }) {
   const texture = useTexture(src);
-  return <mesh scale={[-1, 1, 1]}>
-    <sphereGeometry args={[40, 64, 40]} />
-    <meshBasicMaterial map={texture} toneMapped={false} />
-  </mesh>;
+  return <mesh scale={[-1, 1, 1]}><sphereGeometry args={[40, 64, 40]} /><meshBasicMaterial map={texture} toneMapped={false} /></mesh>;
 }
 
 function Camera({ room }) {
   const controls = useRef();
-  const target = useMemo(() => Object.fromEntries(ROOMS.map((item) => [item.id, {
-    position: new Vector3(...item.position),
-    target: new Vector3(...item.target),
-  }])), []);
+  const targets = useMemo(() => Object.fromEntries(ROOMS.map((item) => [item.id, { position: new Vector3(...item.position), target: new Vector3(...item.target) }])), []);
   useFrame(({ camera }) => {
-    const next = target[room] ?? target.living;
+    const next = targets[room] ?? targets.living;
     camera.position.lerp(next.position, 0.055);
     controls.current?.target.lerp(next.target, 0.065);
   });
@@ -77,23 +72,21 @@ export default function ApartmentInterior() {
   const slug = getSlug();
   const project = getProjectBySlug(slug);
   const units = getProjectUnits(project);
+  const engine = getShowroomEngine(project);
   const [unitId, setUnitId] = useState(units[0]?.id ?? null);
   const [room, setRoom] = useState('living');
   const [night, setNight] = useState(false);
   const unit = units.find((item) => item.id === unitId) ?? units[0];
-  const assets = project.assets ?? {};
-  const assetList = assets.manifest?.assets ?? [];
-  const byKind = (kind) => assetList.find((asset) => asset.kind === kind && asset.path);
-  const runtimeAssets = {
-    unitModel: assets.unitModel ?? byKind('unitModel'),
-    interiorModel: assets.interiorModel ?? byKind('interiorRender'),
-    panorama360: assets.panorama360 ?? byKind('panorama360'),
-  };
   const content = project.config?.content ?? {};
+  const runtimeAssets = {
+    unitModel: resolveShowroomAsset(project, 'unitModel'),
+    interiorModel: resolveShowroomAsset(project, 'interiorRender'),
+    panorama360: resolveShowroomAsset(project, 'panorama360'),
+  };
 
   return <div className={`apartment-interior ${night ? 'night' : ''}`}>
     <header className="ai-nav">
-      <div><span>{project.name}</span><small>INTERIOR EXPERIENCE</small></div>
+      <div><span>{project.name}</span><small>INTERIOR EXPERIENCE · {engine.mode.toUpperCase()}</small></div>
       <div className="ai-actions">
         <label>UNIDAD <select value={unit?.id ?? ''} onChange={(event) => setUnitId(event.target.value)}>{units.map((item) => <option key={item.id} value={item.id}>{item.number} · {item.surface ?? item.area ?? 0} m²</option>)}</select></label>
         <button onClick={() => setNight((value) => !value)}>{night ? 'Día' : 'Atardecer'}</button>
@@ -101,15 +94,10 @@ export default function ApartmentInterior() {
     </header>
     <main className="ai-stage">
       <Scene assets={runtimeAssets} room={room} night={night} />
-      <div className="ai-copy">
-        <span>UNIDAD {unit?.number ?? '—'} · PISO {unit?.floor ?? '—'}</span>
-        <h1>Entrá. Viví el espacio.</h1>
-        <p>{content.heroSubtitle ?? 'Recorré el departamento ambiente por ambiente antes de elegir tu unidad.'}</p>
-      </div>
+      <div className="ai-copy"><span>UNIDAD {unit?.number ?? '—'} · PISO {unit?.floor ?? '—'}</span><h1>Entrá. Viví el espacio.</h1><p>{content.heroSubtitle ?? 'Recorré el departamento ambiente por ambiente antes de elegir tu unidad.'}</p></div>
       <div className="ai-roombar">{ROOMS.map((item) => <button key={item.id} className={room === item.id ? 'active' : ''} onClick={() => setRoom(item.id)}>{item.label}</button>)}</div>
       <div className="ai-spec"><strong>{unit?.surface ?? unit?.area ?? 0} m²</strong><span>{unit?.bedrooms ?? 0} dormitorios · {unit?.bathrooms ?? 0} baños</span><b>{unit?.price ? `$${Number(unit.price).toLocaleString('en-US')}` : 'Consultar'}</b></div>
       <div className="ai-hint"><span>ARRASTRÁ PARA EXPLORAR</span><span>SCROLL · ZOOM</span></div>
-      <Html position={[0, 3, 0]}><div /></Html>
     </main>
   </div>;
 }
