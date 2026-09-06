@@ -9,5 +9,7 @@ export default function App() {
   if (path === '/' || path === '/admin') return <AdminDashboard />;
   if (path === '/studio') return <ProjectStudio />;
   if (path.startsWith('/cliente/')) return <ClientPortal />;
+  // /proyecto/:slug is the full showroom; /embed/:slug is the same experience
+  // exposed as the read-only surface intended for an iframe or client website.
   return <ShowroomExperience />;
 }
