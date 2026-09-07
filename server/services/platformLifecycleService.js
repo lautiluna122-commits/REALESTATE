@@ -11,6 +11,15 @@ export const PLAN_CATALOG = Object.freeze({
   enterprise: { setupFrom: 10000, monthlyFrom: 500, annualFrom: 5000 },
 });
 
+export const PROJECT_LIFECYCLE = Object.freeze({
+  DRAFT: ['PROCESSING', 'REVIEW'],
+  PROCESSING: ['REVIEW', 'DRAFT'],
+  REVIEW: ['APPROVED', 'PROCESSING', 'DRAFT'],
+  APPROVED: ['PUBLISHED', 'REVIEW'],
+  PUBLISHED: ['ARCHIVED', 'APPROVED'],
+  ARCHIVED: ['DRAFT'],
+});
+
 export function ensureLifecycleSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS project_versions (id TEXT PRIMARY KEY, projectId TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', snapshot TEXT NOT NULL, createdBy TEXT, approvedAt TEXT, publishedAt TEXT, createdAt TEXT NOT NULL, FOREIGN KEY(projectId) REFERENCES projects(id), UNIQUE(projectId, version));
@@ -20,6 +29,42 @@ export function ensureLifecycleSchema() {
     CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY, companyId TEXT NOT NULL, projectId TEXT, planCode TEXT NOT NULL, billingInterval TEXT NOT NULL DEFAULT 'year', status TEXT NOT NULL DEFAULT 'TRIAL', currency TEXT NOT NULL DEFAULT 'USD', amount REAL NOT NULL DEFAULT 0, startsAt TEXT NOT NULL, endsAt TEXT, renewalAt TEXT, createdAt TEXT NOT NULL, FOREIGN KEY(companyId) REFERENCES companies(id), FOREIGN KEY(projectId) REFERENCES projects(id));
     CREATE TABLE IF NOT EXISTS service_requests (id TEXT PRIMARY KEY, companyId TEXT NOT NULL, projectId TEXT, type TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'NORMAL', title TEXT NOT NULL, description TEXT, status TEXT NOT NULL DEFAULT 'OPEN', requestedBy TEXT, resolvedAt TEXT, createdAt TEXT NOT NULL, FOREIGN KEY(companyId) REFERENCES companies(id), FOREIGN KEY(projectId) REFERENCES projects(id));
   `);
+}
+
+export function transitionProject(projectId, nextStatus, { versionId = null, actor = null } = {}) {
+  ensureLifecycleSchema();
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+  if (!project) return null;
+
+  const currentStatus = project.status || 'DRAFT';
+  if (currentStatus === nextStatus) return { ...project, changed: false };
+  const allowed = PROJECT_LIFECYCLE[currentStatus] ?? [];
+  if (!allowed.includes(nextStatus)) {
+    throw new Error(`Invalid lifecycle transition: ${currentStatus} -> ${nextStatus}`);
+  }
+
+  const now = new Date().toISOString();
+  db.prepare('UPDATE projects SET status = ? WHERE id = ?').run(nextStatus, projectId);
+
+  if (versionId) {
+    const version = db.prepare('SELECT id, projectId, version FROM project_versions WHERE id = ? AND projectId = ?').get(versionId, projectId);
+    if (!version) throw new Error('Version not found for project');
+    if (nextStatus === 'APPROVED') {
+      db.prepare('UPDATE project_versions SET status = ?, approvedAt = ? WHERE id = ?').run('APPROVED', now, versionId);
+    }
+    if (nextStatus === 'PUBLISHED') {
+      db.prepare('UPDATE project_versions SET status = ?, publishedAt = ? WHERE id = ?').run('PUBLISHED', now, versionId);
+    }
+  }
+
+  return {
+    ...project,
+    status: nextStatus,
+    changed: true,
+    changedAt: now,
+    changedBy: actor,
+    versionId,
+  };
 }
 
 export function recordAnalyticsEvent(input) {
