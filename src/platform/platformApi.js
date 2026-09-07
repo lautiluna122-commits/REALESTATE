@@ -18,6 +18,12 @@ async function request(path, options = {}) {
 
 export const platformApi = {
   getPlans: () => request('/platform/plans'),
+  getProjectBySlug: (slug) => request(`/projects/slug/${encodeURIComponent(slug)}`),
+  getProjectUnits: (projectId) => request(`/projects/${projectId}/units`),
+  updateProjectUnit: (projectId, unitId, updates) => request(`/admin/projects/${projectId}/units/${unitId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  }),
   getProjectState: (projectId) => request(`/admin/projects/${projectId}/platform-state`),
   getProjectAnalytics: (projectId, since) => request(`/admin/projects/${projectId}/analytics${since ? `?since=${encodeURIComponent(since)}` : ''}`),
   getProjectVersions: (projectId) => request(`/admin/projects/${projectId}/versions`),
