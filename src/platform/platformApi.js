@@ -18,7 +18,11 @@ async function request(path, options = {}) {
 
 export const platformApi = {
   getPlans: () => request('/platform/plans'),
+  getCompanies: () => request('/admin/companies'),
+  createCompany: (payload) => request('/admin/companies', { method: 'POST', body: JSON.stringify(payload) }),
   getProjectBySlug: (slug) => request(`/projects/slug/${encodeURIComponent(slug)}`),
+  createProject: (payload) => request('/admin/projects', { method: 'POST', body: JSON.stringify(payload) }),
+  publishProject: (projectId, payload = {}) => request(`/admin/projects/${projectId}/publish`, { method: 'POST', body: JSON.stringify(payload) }),
   getProjectUnits: (projectId) => request(`/projects/${projectId}/units`),
   getCompanyProjectUnits: (companyId, projectId) => request(`/company/${companyId}/projects/${projectId}/units`),
   updateProjectUnit: (projectId, unitId, updates) => request(`/admin/projects/${projectId}/units/${unitId}`, {
