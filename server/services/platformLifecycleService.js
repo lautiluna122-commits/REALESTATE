@@ -39,32 +39,26 @@ export function transitionProject(projectId, nextStatus, { versionId = null, act
   const currentStatus = project.status || 'DRAFT';
   if (currentStatus === nextStatus) return { ...project, changed: false };
   const allowed = PROJECT_LIFECYCLE[currentStatus] ?? [];
-  if (!allowed.includes(nextStatus)) {
-    throw new Error(`Invalid lifecycle transition: ${currentStatus} -> ${nextStatus}`);
-  }
+  if (!allowed.includes(nextStatus)) throw new Error(`Invalid lifecycle transition: ${currentStatus} -> ${nextStatus}`);
+
+  const version = versionId
+    ? db.prepare('SELECT id, projectId, version FROM project_versions WHERE id = ? AND projectId = ?').get(versionId, projectId)
+    : null;
+  if (versionId && !version) throw new Error('Version not found for project');
 
   const now = new Date().toISOString();
-  db.prepare('UPDATE projects SET status = ? WHERE id = ?').run(nextStatus, projectId);
-
-  if (versionId) {
-    const version = db.prepare('SELECT id, projectId, version FROM project_versions WHERE id = ? AND projectId = ?').get(versionId, projectId);
-    if (!version) throw new Error('Version not found for project');
-    if (nextStatus === 'APPROVED') {
+  const updateProject = db.transaction(() => {
+    db.prepare('UPDATE projects SET status = ? WHERE id = ?').run(nextStatus, projectId);
+    if (versionId && nextStatus === 'APPROVED') {
       db.prepare('UPDATE project_versions SET status = ?, approvedAt = ? WHERE id = ?').run('APPROVED', now, versionId);
     }
-    if (nextStatus === 'PUBLISHED') {
+    if (versionId && nextStatus === 'PUBLISHED') {
       db.prepare('UPDATE project_versions SET status = ?, publishedAt = ? WHERE id = ?').run('PUBLISHED', now, versionId);
     }
-  }
+  });
+  updateProject();
 
-  return {
-    ...project,
-    status: nextStatus,
-    changed: true,
-    changedAt: now,
-    changedBy: actor,
-    versionId,
-  };
+  return { ...project, status: nextStatus, changed: true, changedAt: now, changedBy: actor, versionId };
 }
 
 export function recordAnalyticsEvent(input) {
