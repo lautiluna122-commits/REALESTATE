@@ -1,6 +1,4 @@
 import './experience/cinematic-polish.css';
-import CinematicShowroom from './experience/CinematicShowroom';
-import ApartmentInterior from './experience/ApartmentInterior';
 import ProjectStudio from './admin/ProjectStudio';
 import AdminDashboard from './admin/AdminDashboard';
 import ClientPortal from './client/ClientPortal';
@@ -24,5 +22,5 @@ export default function App() {
   if (path.startsWith('/cliente/')) return <ClientPortal />;
   if (interiorSlug) return <PublicInterior slug={interiorSlug} />;
   if (showroomSlug) return <PublicShowroom slug={showroomSlug} />;
-  return <CinematicShowroom />;
+  return <PublicExperienceLoader slug="ocean-mansions" />;
 }
