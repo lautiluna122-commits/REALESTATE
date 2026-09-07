@@ -1,9 +1,11 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { ContactShadows, Environment, Html, OrbitControls, RoundedBox, Sky } from '@react-three/drei';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ContactShadows, Environment, Html, OrbitControls, RoundedBox, Sky, useGLTF } from '@react-three/drei';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Vector3 } from 'three';
 import { getProjectBySlug } from '../platform/projectRegistry';
 import { STATUS_LABELS } from '../domain/platformModels';
+import { getShowroomEngine, resolveShowroomAsset } from './showroomEngine';
+import { getShowroomTheme } from './showroomTheme';
 import './cinematic-showroom.css';
 
 const pathname = typeof window !== 'undefined' ? window.location.pathname.replace(/\/+$/, '') : '/';
@@ -19,8 +21,19 @@ const rooms = [
   { id: 'bedroom', label: 'Dormitorio', position: [9, 3, -9], target: [4, 1.6, -5], copy: 'Privacidad y luz natural.' },
   { id: 'terrace', label: 'Terraza', position: [0, 4.2, -15], target: [0, 2.2, -8], copy: 'El horizonte como extensión.' },
 ];
-
 const statusLabel = (s) => STATUS_LABELS[s] ?? s ?? 'Sin estado';
+
+class AssetBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
+
+function BuildingAsset({ path }) {
+  const { scene } = useGLTF(path);
+  const clone = useMemo(() => scene.clone(true), [scene]);
+  return <primitive object={clone} position={[0, 0, 0]} scale={1} castShadow receiveShadow />;
+}
 
 function Furniture({ room, night }) {
   if (room === 'kitchen') return <group><RoundedBox args={[5.8, .8, 1.2]} radius={.12} position={[4.7, .7, 0]}><meshStandardMaterial color="#d8d0c2" roughness={.38} /></RoundedBox><RoundedBox args={[2.4, 1.8, .8]} radius={.08} position={[6.3, 1.55, -1.4]}><meshStandardMaterial color="#aaa49b" roughness={.45} /></RoundedBox><mesh position={[4.7, 1.15, 0]}><boxGeometry args={[5.4, .06, 1]} /><meshStandardMaterial color="#b9a58a" roughness={.2} metalness={.35} /></mesh></group>;
@@ -45,17 +58,19 @@ function InteriorScene({ unit, night, room }) {
   </group>;
 }
 
-function ExteriorScene({ night, selectedFloor, selectedUnit, onSelectUnit }) {
+function ExteriorScene({ night, selectedFloor, selectedUnit, onSelectUnit, buildingPath }) {
   const height = 2.7; const podium = 4.2; const max = Math.max(...floors, 10);
   return <group>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -.1, 0]} receiveShadow><planeGeometry args={[120, 120]} /><meshStandardMaterial color={night ? '#182426' : '#9eae94'} roughness={1} /></mesh>
-    <RoundedBox args={[18, 4, 12]} radius={.45} smoothness={5} position={[0, 2, 0]} castShadow><meshStandardMaterial color="#a9a39a" roughness={.72} /></RoundedBox>
-    {Array.from({ length: max }).map((_, i) => { const floor = floors[i] ?? i + 1; const y = podium + i * height + height / 2; const active = selectedFloor == null || selectedFloor === floor; const floorUnits = units.filter((u) => u.floor === floor); return <group key={floor} position={[0, y, 0]}>
-      <mesh position={[0, -height / 2, 0]}><boxGeometry args={[18.4, .16, 12.2]} /><meshStandardMaterial color={selectedFloor === floor ? '#c8ad75' : '#bdb6ac'} transparent opacity={active ? 1 : .08} roughness={.68} /></mesh>
-      {floorUnits.map((u, j) => <mesh key={u.id} position={[-5.5 + (j % 4) * 3.7, 0, 6.05]} onClick={(e) => { e.stopPropagation(); onSelectUnit(u); }}><boxGeometry args={[2.8, 1.8, .12]} /><meshStandardMaterial color={night ? '#c7a769' : '#668f99'} roughness={.12} metalness={.55} emissive={selectedUnit?.id === u.id ? '#d8a943' : '#163941'} emissiveIntensity={selectedUnit?.id === u.id ? 1 : night ? .35 : .04} transparent opacity={active ? 1 : .08} /></mesh>)}
-    </group>; })}
-    <RoundedBox args={[19.5, .7, 13]} radius={.28} smoothness={4} position={[0, 3.75, 0]}><meshStandardMaterial color="#d4cec4" roughness={.65} /></RoundedBox>
-    <RoundedBox args={[15, .55, 8]} radius={.25} smoothness={4} position={[0, podium + max * height + .2, 0]}><meshStandardMaterial color="#c7c0b6" roughness={.58} /></RoundedBox>
+    {buildingPath ? <AssetBoundary fallback={null}><Suspense fallback={null}><BuildingAsset path={buildingPath} /></Suspense></AssetBoundary> : <>
+      <RoundedBox args={[18, 4, 12]} radius={.45} smoothness={5} position={[0, 2, 0]} castShadow><meshStandardMaterial color="#a9a39a" roughness={.72} /></RoundedBox>
+      {Array.from({ length: max }).map((_, i) => { const floor = floors[i] ?? i + 1; const y = podium + i * height + height / 2; const active = selectedFloor == null || selectedFloor === floor; const floorUnits = units.filter((u) => u.floor === floor); return <group key={floor} position={[0, y, 0]}>
+        <mesh position={[0, -height / 2, 0]}><boxGeometry args={[18.4, .16, 12.2]} /><meshStandardMaterial color={selectedFloor === floor ? '#c8ad75' : '#bdb6ac'} transparent opacity={active ? 1 : .08} roughness={.68} /></mesh>
+        {floorUnits.map((u, j) => <mesh key={u.id} position={[-5.5 + (j % 4) * 3.7, 0, 6.05]} onClick={(e) => { e.stopPropagation(); onSelectUnit(u); }}><boxGeometry args={[2.8, 1.8, .12]} /><meshStandardMaterial color={night ? '#c7a769' : '#668f99'} roughness={.12} metalness={.55} emissive={selectedUnit?.id === u.id ? '#d8a943' : '#163941'} emissiveIntensity={selectedUnit?.id === u.id ? 1 : night ? .35 : .04} transparent opacity={active ? 1 : .08} /></mesh>)}
+      </group>; })}
+      <RoundedBox args={[19.5, .7, 13]} radius={.28} smoothness={4} position={[0, 3.75, 0]}><meshStandardMaterial color="#d4cec4" roughness={.65} /></RoundedBox>
+      <RoundedBox args={[15, .55, 8]} radius={.25} smoothness={4} position={[0, podium + max * height + .2, 0]}><meshStandardMaterial color="#c7c0b6" roughness={.58} /></RoundedBox>
+    </>}
     <RoundedBox args={[26, .22, 12]} radius={.3} smoothness={4} position={[0, .08, 13]}><meshStandardMaterial color="#cbbda7" roughness={.8} /></RoundedBox>
     <RoundedBox args={[16, .25, 7]} radius={.3} smoothness={4} position={[0, .3, 13]}><meshStandardMaterial color={night ? '#456a72' : '#5b9faf'} roughness={.12} metalness={.2} emissive="#123f49" emissiveIntensity={.08} /></RoundedBox>
   </group>;
@@ -74,10 +89,10 @@ function CameraRig({ interior, room, mode, selectedFloor }) {
   return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={.07} minDistance={interior ? 4.5 : 11} maxDistance={interior ? 22 : 68} maxPolarAngle={Math.PI / 2.02} />;
 }
 
-function Scene({ interior, room, mode, selectedFloor, selectedUnit, night, onSelectUnit }) {
+function Scene({ interior, room, mode, selectedFloor, selectedUnit, night, onSelectUnit, buildingPath }) {
   return <Canvas shadows camera={{ position: [34, 24, 40], fov: 34 }} dpr={[1, 1.7]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
     <color attach="background" args={[interior ? (night ? '#17130f' : '#d8d0c4') : (night ? '#071217' : '#a8c6cf')]} />
-    {interior ? <><ambientLight intensity={night ? .55 : 1.35} /><directionalLight castShadow position={[-4, 9, 5]} intensity={night ? 1.1 : 2.2} color={night ? '#f0b86c' : '#fff1d4'} /><pointLight position={[0, 4, 2]} intensity={night ? 1.4 : .55} color="#ffe3b1" /><InteriorScene unit={selectedUnit} night={night} room={room} /></> : <><ambientLight intensity={night ? .4 : 1.1} /><directionalLight castShadow position={[18, 32, 10]} intensity={night ? 1.2 : 3.1} color={night ? '#e6bd79' : '#fff0cf'} shadow-mapSize-width={2048} shadow-mapSize-height={2048} /><Environment preset="city" /><Sky distance={450000} sunPosition={night ? [-4, -2, 2] : [8, 8, 5]} inclination={night ? .82 : .48} azimuth={.22} /><ExteriorScene night={night} selectedFloor={selectedFloor} selectedUnit={selectedUnit} onSelectUnit={onSelectUnit} /><ContactShadows position={[0, -.02, 0]} opacity={night ? .3 : .42} scale={70} blur={2.5} far={45} /></>}
+    {interior ? <><ambientLight intensity={night ? .55 : 1.35} /><directionalLight castShadow position={[-4, 9, 5]} intensity={night ? 1.1 : 2.2} color={night ? '#f0b86c' : '#fff1d4'} /><pointLight position={[0, 4, 2]} intensity={night ? 1.4 : .55} color="#ffe3b1" /><InteriorScene unit={selectedUnit} night={night} room={room} /></> : <><ambientLight intensity={night ? .4 : 1.1} /><directionalLight castShadow position={[18, 32, 10]} intensity={night ? 1.2 : 3.1} color={night ? '#e6bd79' : '#fff0cf'} shadow-mapSize-width={2048} shadow-mapSize-height={2048} /><Environment preset="city" /><Sky distance={450000} sunPosition={night ? [-4, -2, 2] : [8, 8, 5]} inclination={night ? .82 : .48} azimuth={.22} /><ExteriorScene night={night} selectedFloor={selectedFloor} selectedUnit={selectedUnit} onSelectUnit={onSelectUnit} buildingPath={buildingPath} /><ContactShadows position={[0, -.02, 0]} opacity={night ? .3 : .42} scale={70} blur={2.5} far={45} /></>}
     <CameraRig interior={interior} room={room} mode={mode} selectedFloor={selectedFloor} />
   </Canvas>;
 }
@@ -90,17 +105,35 @@ function UnitCard({ unit, onEnter, onClose }) {
 export default function CinematicShowroom() {
   const [interior, setInterior] = useState(false); const [room, setRoom] = useState('living'); const [mode, setMode] = useState('master'); const [night, setNight] = useState(false); const [selectedFloor, setSelectedFloor] = useState(null); const [selectedUnit, setSelectedUnit] = useState(null); const [tour, setTour] = useState(false);
   const embed = pathname.startsWith('/embed/');
-  const content = project.config?.content ?? {};
+  const engine = getShowroomEngine(project);
+  const theme = getShowroomTheme(project);
+  const content = theme.content;
+  const buildingAsset = resolveShowroomAsset(project, 'buildingModel');
+  const buildingPath = buildingAsset?.path ?? null;
+
+  useEffect(() => {
+    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    const unitParam = params.get('unit');
+    if (unitParam) {
+      const match = units.find((u) => String(u.id) === unitParam || String(u.number) === unitParam);
+      if (match) { setSelectedUnit(match); setSelectedFloor(match.floor); setInterior(true); }
+    }
+  }, []);
   useEffect(() => { if (!tour || !interior) return undefined; const id = window.setInterval(() => setRoom((current) => rooms[(rooms.findIndex((r) => r.id === current) + 1) % rooms.length].id), 4200); return () => window.clearInterval(id); }, [tour, interior]);
-  const enter = (unit) => { setSelectedUnit(unit); setSelectedFloor(unit.floor); setInterior(true); setRoom('living'); setTour(false); };
+
+  const enter = (unit) => {
+    setSelectedUnit(unit); setSelectedFloor(unit.floor); setInterior(true); setRoom('living'); setTour(false);
+    window.history.replaceState({}, '', `/proyecto/${project.slug}?unit=${encodeURIComponent(unit.id ?? unit.number)}`);
+  };
+  const backToBuilding = () => { setInterior(false); window.history.replaceState({}, '', `/proyecto/${project.slug}`); };
   const available = units.filter((u) => u.status === 'AVAILABLE').length;
   const fromPrice = units.length ? Math.min(...units.map((u) => u.price ?? 0)) : 0;
 
-  return <div className={`cin-showroom ${interior ? 'cin-interior' : ''} ${night ? 'cin-night' : ''}`}>
-    <header className="cin-nav"><div className="cin-brand"><span>RE</span><div><b>{project.name ?? 'REAL ESTATE'}</b><small>DIGITAL PROPERTY EXPERIENCE</small></div></div><div className="cin-nav-actions">{interior && <button onClick={() => setInterior(false)}>← Edificio</button>}<button onClick={() => setNight((v) => !v)}>{night ? '☼ Día' : '☾ Noche'}</button>{!embed && <a href={`/cliente/${project.slug}`}>Panel</a>}</div></header>
-    <main className="cin-stage"><Scene interior={interior} room={room} mode={mode} selectedFloor={selectedFloor} selectedUnit={selectedUnit} night={night} onSelectUnit={(u) => { setSelectedUnit(u); setSelectedFloor(u.floor); setMode('close'); }} />
-      {!interior ? <div className="cin-overlay"><div className="cin-copy"><span>EXPERIENCIA INMOBILIARIA · {project.location?.city ?? 'URUGUAY'}</span><h1>{content.heroTitle ?? project.name}</h1><p>{content.heroSubtitle ?? 'Recorré el proyecto, elegí una unidad y entrá a conocerla por dentro.'}</p><div className="cin-actions"><button className="cin-primary" onClick={() => setMode('building')}>Explorar edificio ↗</button><button className="cin-secondary" onClick={() => setTour((v) => !v)}>{tour ? 'Detener recorrido' : 'Tour cinematográfico'}</button></div></div><div className="cin-floorbar"><small>PISOS</small><button className={!selectedFloor ? 'active' : ''} onClick={() => { setSelectedFloor(null); setMode('master'); }}>TODOS</button>{floors.map((f) => <button key={f} className={selectedFloor === f ? 'active' : ''} onClick={() => { setSelectedFloor(f); setMode('close'); }}>{String(f).padStart(2, '0')}</button>)}</div>{selectedUnit && <UnitCard unit={selectedUnit} onEnter={() => enter(selectedUnit)} onClose={() => setSelectedUnit(null)} />}<div className="cin-bottom"><span>{units.length} unidades</span><span>{available} disponibles</span><span>desde {money.format(fromPrice)}</span><span>Exterior · interior · 360° ready</span></div></div> : <div className="cin-interior-ui"><div className="cin-interior-head"><span>UNIDAD {selectedUnit?.number ?? '—'} · EXPERIENCIA INTERIOR</span><h1>{selectedUnit?.type ?? 'Apartamento'}</h1><p>{selectedUnit?.surface ?? 0} m² · {selectedUnit?.bedrooms ?? 0} dormitorios</p></div><div className="cin-roombar">{rooms.map((r) => <button key={r.id} className={room === r.id ? 'active' : ''} onClick={() => setRoom(r.id)}>{r.label}</button>)}<button className={tour ? 'active' : ''} onClick={() => setTour((v) => !v)}>{tour ? 'Pausar' : 'Recorrido'}</button></div><div className="cin-interior-hint">ARRASTRÁ PARA MIRAR · ACERCÁ PARA EXPLORAR</div></div>}
+  return <div className={`cin-showroom ${interior ? 'cin-interior' : ''} ${night ? 'cin-night' : ''}`} style={{ '--cin-primary': theme.branding.primary, '--cin-accent': theme.branding.accent, '--cin-font': theme.typography.font }}>
+    <header className="cin-nav"><div className="cin-brand">{theme.branding.logo ? <img src={theme.branding.logo} alt="" /> : <span>RE</span>}<div><b>{project.name ?? 'REAL ESTATE'}</b><small>DIGITAL PROPERTY EXPERIENCE · {engine.mode.toUpperCase()}</small></div></div><div className="cin-nav-actions">{interior && <button onClick={backToBuilding}>← Edificio</button>}<button onClick={() => setNight((v) => !v)}>{night ? '☼ Día' : '☾ Noche'}</button>{!embed && <a href={`/cliente/${project.slug}`}>Panel</a>}</div></header>
+    <main className="cin-stage"><Scene interior={interior} room={room} mode={mode} selectedFloor={selectedFloor} selectedUnit={selectedUnit} night={night} onSelectUnit={(u) => { setSelectedUnit(u); setSelectedFloor(u.floor); setMode('close'); }} buildingPath={buildingPath} />
+      {!interior ? <div className="cin-overlay"><div className="cin-copy"><span>{content.eyebrow}</span><h1>{content.heroTitle ?? project.name}</h1><p>{content.heroSubtitle}</p><div className="cin-actions"><button className="cin-primary" onClick={() => setMode('building')}>Explorar edificio ↗</button><button className="cin-secondary" onClick={() => setTour((v) => !v)}>{tour ? 'Detener recorrido' : 'Tour cinematográfico'}</button></div></div><div className="cin-floorbar"><small>PISOS</small><button className={!selectedFloor ? 'active' : ''} onClick={() => { setSelectedFloor(null); setMode('master'); }}>TODOS</button>{floors.map((f) => <button key={f} className={selectedFloor === f ? 'active' : ''} onClick={() => { setSelectedFloor(f); setMode('close'); }}>{String(f).padStart(2, '0')}</button>)}</div>{selectedUnit && <UnitCard unit={selectedUnit} onEnter={() => enter(selectedUnit)} onClose={() => setSelectedUnit(null)} />}<div className="cin-bottom"><span>{units.length} unidades</span><span>{available} disponibles</span><span>desde {money.format(fromPrice)}</span><span>{engine.renderer} · interior · 360°</span></div></div> : <div className="cin-interior-ui"><div className="cin-interior-head"><span>{content.interiorEyebrow} · UNIDAD {selectedUnit?.number ?? '—'}</span><h1>{selectedUnit?.type ?? 'Apartamento'}</h1><p>{selectedUnit?.surface ?? selectedUnit?.area ?? 0} m² · {selectedUnit?.bedrooms ?? 0} dormitorios</p></div><div className="cin-roombar">{rooms.map((r) => <button key={r.id} className={room === r.id ? 'active' : ''} onClick={() => setRoom(r.id)}>{r.label}</button>)}<button className={tour ? 'active' : ''} onClick={() => setTour((v) => !v)}>{tour ? 'Pausar' : 'Recorrido'}</button></div><div className="cin-interior-hint">{content.interiorText} · ARRASTRÁ PARA MIRAR · ACERCÁ PARA EXPLORAR</div></div>}
     </main>
-    {!interior && <section className="cin-sales-strip"><div><span>EL PRODUCTO PRINCIPAL</span><h2>No mires el departamento.<br /><em>Entrá.</em></h2></div><p>{content.introText ?? 'La experiencia empieza en el edificio, pero la decisión ocurre cuando el comprador puede imaginarse viviendo dentro de su futura unidad.'}</p><button className="cin-primary" onClick={() => units[0] && enter(units[0])}>Entrar a una unidad ↗</button></section>}
+    {!interior && !embed && <section className="cin-sales-strip"><div><span>{content.introTitle}</span><h2>No mires el departamento.<br /><em>Entrá.</em></h2></div><p>{content.introText}</p><button className="cin-primary" onClick={() => units[0] && enter(units[0])}>Entrar a una unidad ↗</button></section>}
   </div>;
 }
