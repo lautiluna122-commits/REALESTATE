@@ -49,40 +49,46 @@ function inventoryFromImportedPlans(plans = []) {
   return [...byId.values()];
 }
 
+function readPublishedManifest(slug) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(`realestate:project:${slug}`);
+    if (!raw) return null;
+    const manifest = JSON.parse(raw);
+    if (!manifest?.project) return null;
+    const importedInventory = Array.isArray(manifest.inventory) ? manifest.inventory : [];
+    const mappedInventory = importedInventory.length ? importedInventory : inventoryFromImportedPlans(manifest.plans);
+    return {
+      id: manifest.project.id ?? slug,
+      name: manifest.project.name ?? slug,
+      slug: manifest.project.slug ?? slug,
+      companyId: manifest.project.companyId ?? '',
+      location: manifest.location ?? manifest.project.location ?? null,
+      config: manifest.project.config ?? {},
+      units: mergeInventory(slug, mappedInventory),
+      amenities: manifest.amenities ?? [],
+      assets: manifest.assets ?? {},
+      plans: manifest.plans ?? [],
+      buildings: manifest.buildings ?? [],
+      floors: manifest.floors ?? [],
+      publication: manifest.publication ?? { publicSlug: slug, publicUrl: `/proyecto/${slug}` },
+      status: manifest.project.status ?? 'PUBLISHED',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function getProjectBySlug(slug = 'ocean-mansions') {
+  // A hydrated server manifest is authoritative for public experiences.
+  const publishedManifest = readPublishedManifest(slug);
+  if (publishedManifest) return publishedManifest;
+
   const catalogProject = projectCatalog.find((project) => project.slug === slug || project.publication?.publicSlug === slug);
   if (catalogProject) return {
     ...catalogProject,
     units: mergeInventory(catalogProject.slug, catalogProject.units ?? []),
   };
-
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = window.localStorage.getItem(`realestate:project:${slug}`);
-      if (raw) {
-        const manifest = JSON.parse(raw);
-        const importedInventory = Array.isArray(manifest.inventory) ? manifest.inventory : [];
-        const mappedInventory = importedInventory.length ? importedInventory : inventoryFromImportedPlans(manifest.plans);
-
-        return {
-          id: manifest.project?.id ?? slug,
-          name: manifest.project?.name ?? slug,
-          slug: manifest.project?.slug ?? slug,
-          companyId: manifest.project?.companyId ?? '',
-          location: manifest.project?.location ?? null,
-          config: manifest.project?.config ?? {},
-          units: mergeInventory(slug, mappedInventory),
-          amenities: [],
-          assets: manifest.assets ?? {},
-          plans: manifest.plans ?? [],
-          publication: { publicSlug: slug, publicUrl: `/proyecto/${slug}` },
-          status: 'DRAFT',
-        };
-      }
-    } catch {
-      // Invalid local drafts should never break the public showroom.
-    }
-  }
 
   return projectCatalog[0];
 }
