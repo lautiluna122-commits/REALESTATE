@@ -29,6 +29,7 @@ import {
   publishProject,
   ensureCompanyAccess,
 } from './services/projectService.js';
+import platformLifecycleRoutes from './services/platformLifecycleRoutes.js';
 
 const app = express();
 const db = getDb();
@@ -36,6 +37,7 @@ const port = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
+app.use('/api', platformLifecycleRoutes);
 
 // ============================================================
 // HEALTH CHECK
