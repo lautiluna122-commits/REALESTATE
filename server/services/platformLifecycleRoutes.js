@@ -6,6 +6,8 @@ import {
   listProjectBuildings,
   listProjectFloors,
   listProjectUnits,
+  getUnitById,
+  updateUnit,
   listProjectAmenities,
   listProjectAssets,
   getProjectLocation,
@@ -96,6 +98,30 @@ router.get('/public/projects/:publicSlug/manifest', (req, res) => {
       location: getProjectLocation(project.id),
     });
   } catch (error) { res.status(400).json({ message: error.message }); }
+});
+
+router.patch('/company/:companyId/projects/:projectId/units/:unitId', (req, res) => {
+  const { companyId, projectId, unitId } = req.params;
+  if (!sameCompany(projectId, companyId)) return res.status(403).json({ message: 'Project does not belong to company' });
+  try {
+    const unit = updateUnit(projectId, unitId, req.body ?? {});
+    if (!unit) return res.status(404).json({ message: 'Unit not found' });
+    res.json(unit);
+  } catch (error) { res.status(400).json({ message: error.message }); }
+});
+
+router.get('/company/:companyId/projects/:projectId/units', (req, res) => {
+  const { companyId, projectId } = req.params;
+  if (!sameCompany(projectId, companyId)) return res.status(403).json({ message: 'Project does not belong to company' });
+  res.json(listProjectUnits(projectId));
+});
+
+router.get('/company/:companyId/projects/:projectId/units/:unitId', (req, res) => {
+  const { companyId, projectId, unitId } = req.params;
+  if (!sameCompany(projectId, companyId)) return res.status(403).json({ message: 'Project does not belong to company' });
+  const unit = getUnitById(projectId, unitId);
+  if (!unit) return res.status(404).json({ message: 'Unit not found' });
+  res.json(unit);
 });
 
 router.post('/admin/subscriptions', (req, res) => {
