@@ -30,14 +30,19 @@ function PublicShowroom({ slug }) {
   return <PublicManifestBridge slug={slug}><ShowroomAnalyticsTracker slug={slug} /><CinematicShowroom /></PublicManifestBridge>;
 }
 
+function PublicInterior({ slug }) {
+  return <PublicManifestBridge slug={slug}><ApartmentInterior /></PublicManifestBridge>;
+}
+
 export default function App() {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   const showroomSlug = path.match(/^\/(?:proyecto|embed)\/([^/]+)/)?.[1] ?? null;
+  const interiorSlug = path.match(/^\/proyecto\/([^/]+)\/interior/)?.[1] ?? null;
 
   if (path === '/' || path === '/admin') return <AdminDashboard />;
   if (path === '/studio') return <ProjectStudio />;
   if (path.startsWith('/cliente/')) return <ClientPortal />;
-  if (path.startsWith('/proyecto/') && path.includes('/interior')) return <ApartmentInterior />;
-  if (path.startsWith('/proyecto/') || path.startsWith('/embed/')) return <PublicShowroom slug={showroomSlug} />;
+  if (interiorSlug) return <PublicInterior slug={interiorSlug} />;
+  if (showroomSlug) return <PublicShowroom slug={showroomSlug} />;
   return <CinematicShowroom />;
 }
