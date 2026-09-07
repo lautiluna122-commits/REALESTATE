@@ -1,6 +1,6 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { ContactShadows, Environment, Html, OrbitControls, RoundedBox, Sky, useGLTF } from '@react-three/drei';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Component, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Vector3 } from 'three';
 import { getProjectBySlug } from '../platform/projectRegistry';
 import { STATUS_LABELS } from '../domain/platformModels';
@@ -23,7 +23,7 @@ const rooms = [
 ];
 const statusLabel = (s) => STATUS_LABELS[s] ?? s ?? 'Sin estado';
 
-class AssetBoundary extends React.Component {
+class AssetBoundary extends Component {
   constructor(props) { super(props); this.state = { failed: false }; }
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
