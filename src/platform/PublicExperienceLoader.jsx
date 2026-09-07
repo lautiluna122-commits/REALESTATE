@@ -8,6 +8,15 @@ function Loading({ message = 'Cargando experiencia…' }) {
   return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#071217', color: '#f5f1e8', fontFamily: 'system-ui, sans-serif' }}>{message}</div>;
 }
 
+function normalizeAssets(assets = []) {
+  if (!Array.isArray(assets)) return assets;
+  const manifest = { assets: assets.filter((asset) => asset?.path) };
+  for (const asset of manifest.assets) {
+    if (asset.kind && !manifest[asset.kind]) manifest[asset.kind] = asset;
+  }
+  return manifest;
+}
+
 function cacheManifest(slug, manifest) {
   const normalized = {
     ...manifest,
@@ -21,15 +30,18 @@ function cacheManifest(slug, manifest) {
     },
     inventory: manifest.units ?? [],
     plans: manifest.plans ?? [],
-    assets: manifest.assets ?? [],
-    publication: manifest.publication ?? { publicSlug: slug, publicUrl: `/proyecto/${slug}` },
+    assets: normalizeAssets(manifest.assets),
+    amenities: manifest.amenities ?? [],
+    buildings: manifest.buildings ?? [],
+    floors: manifest.floors ?? [],
+    location: manifest.location ?? manifest.project?.location ?? null,
+    publication: manifest.publication ?? { publicSlug: slug, publicUrl: `/proyecto/${slug}`, isPublished: true },
   };
   window.localStorage.setItem(`realestate:project:${slug}`, JSON.stringify(normalized));
 }
 
 export default function PublicExperienceLoader({ slug, interior = false }) {
   const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -38,10 +50,10 @@ export default function PublicExperienceLoader({ slug, interior = false }) {
         const manifest = await platformApi.getPublicManifest(slug);
         if (!manifest?.project) throw new Error('Public manifest unavailable');
         cacheManifest(slug, manifest);
-        if (active) setReady(true);
       } catch {
         // Preserve the local/demo catalog when the API is unavailable.
-        if (active) { setFailed(true); setReady(true); }
+      } finally {
+        if (active) setReady(true);
       }
     }
     load();
@@ -49,6 +61,9 @@ export default function PublicExperienceLoader({ slug, interior = false }) {
   }, [slug]);
 
   if (!ready) return <Loading />;
-  if (failed) return <Suspense fallback={<Loading />} >{interior ? <ApartmentInterior /> : <CinematicShowroom />}</Suspense>;
-  return <Suspense fallback={<Loading />} >{interior ? <ApartmentInterior /> : <CinematicShowroom />}</Suspense>;
+  return (
+    <Suspense fallback={<Loading />}>
+      {interior ? <ApartmentInterior /> : <CinematicShowroom />}
+    </Suspense>
+  );
 }
