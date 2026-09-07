@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getProjectBySlug, getProjectUnits } from '../platform/projectRegistry';
 import { saveInventory, getPublication, savePublication } from '../platform/projectStore';
+import { ANALYTICS_EVENT } from '../platform/analytics';
 import { platformApi } from '../platform/platformApi';
 import './client-portal.css';
 
@@ -54,10 +55,10 @@ export default function ClientPortal() {
   const publicSlug = project.publication?.publicSlug ?? slug;
   const publicPath = `/proyecto/${publicSlug}`;
   const embedPath = `/embed/${publicSlug}`;
-  const showroomOpens = formatMetric(analytics, 'SHOWROOM_OPEN', 0);
-  const unitSelections = formatMetric(analytics, 'UNIT_SELECT', 0);
-  const planViews = formatMetric(analytics, 'PLAN_VIEW', 0);
-  const contacts = formatMetric(analytics, 'CTA_CONTACT', 0) + formatMetric(analytics, 'CTA_WHATSAPP', 0);
+  const showroomOpens = formatMetric(analytics, ANALYTICS_EVENT.SHOWROOM_OPEN);
+  const unitSelections = formatMetric(analytics, ANALYTICS_EVENT.UNIT_SELECT);
+  const planViews = formatMetric(analytics, ANALYTICS_EVENT.PLAN_VIEW);
+  const contacts = formatMetric(analytics, ANALYTICS_EVENT.CTA_CONTACT) + formatMetric(analytics, ANALYTICS_EVENT.CTA_WHATSAPP);
 
   function updateUnit(id, field, value) {
     setSaved(false);
@@ -83,7 +84,7 @@ export default function ClientPortal() {
         setSyncState('live');
       }
 
-      const overrides = saveInventory(project.slug, units);
+      saveInventory(project.slug, units);
       const publication = savePublication(project.slug, { status: 'LIVE', inventoryUpdatedAt: new Date().toISOString() });
       setLastSaved(publication.updatedAt);
       setDirtyUnits(new Set());
