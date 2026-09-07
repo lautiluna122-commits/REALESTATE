@@ -20,7 +20,12 @@ export const platformApi = {
   getPlans: () => request('/platform/plans'),
   getProjectBySlug: (slug) => request(`/projects/slug/${encodeURIComponent(slug)}`),
   getProjectUnits: (projectId) => request(`/projects/${projectId}/units`),
+  getCompanyProjectUnits: (companyId, projectId) => request(`/company/${companyId}/projects/${projectId}/units`),
   updateProjectUnit: (projectId, unitId, updates) => request(`/admin/projects/${projectId}/units/${unitId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  }),
+  updateCompanyProjectUnit: (companyId, projectId, unitId, updates) => request(`/company/${companyId}/projects/${projectId}/units/${unitId}`, {
     method: 'PATCH',
     body: JSON.stringify(updates),
   }),
