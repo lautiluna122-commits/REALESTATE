@@ -4,7 +4,7 @@ import ApartmentInterior from './experience/ApartmentInterior';
 import ProjectStudio from './admin/ProjectStudio';
 import AdminDashboard from './admin/AdminDashboard';
 import ClientPortal from './client/ClientPortal';
-import { PublicExperienceLoader } from './platform/index.js';
+import PublicExperienceLoader from './platform/PublicExperienceLoader';
 
 function PublicShowroom({ slug }) {
   return <PublicExperienceLoader slug={slug} />;
