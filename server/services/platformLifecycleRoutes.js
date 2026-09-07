@@ -11,6 +11,7 @@ import {
   listProjectAmenities,
   listProjectAssets,
   getProjectLocation,
+  publishProject,
 } from './projectService.js';
 import {
   PLAN_CATALOG,
@@ -88,6 +89,20 @@ router.post('/admin/projects/:projectId/lifecycle', (req, res) => {
     const project = transitionProject(req.params.projectId, status, { versionId, actor });
     if (!project) return res.status(404).json({ message: 'Project not found' });
     res.json(project);
+  } catch (error) { res.status(400).json({ message: error.message }); }
+});
+
+router.post('/admin/projects/:projectId/publish', (req, res) => {
+  const project = getProjectById(req.params.projectId);
+  if (!project) return res.status(404).json({ message: 'Project not found' });
+  if (project.status !== 'APPROVED') return res.status(409).json({ message: `Project must be APPROVED before publication (current: ${project.status})` });
+  const versions = listProjectVersions(project.id);
+  const version = versions[0];
+  if (!version || version.status !== 'APPROVED') return res.status(409).json({ message: 'An approved project version is required before publication' });
+  try {
+    transitionProject(project.id, 'PUBLISHED', { versionId: version.id, actor: req.body?.actor ?? null });
+    const result = publishProject(project.id, req.body || {});
+    res.json(result);
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
 
