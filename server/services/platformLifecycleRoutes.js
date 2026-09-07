@@ -27,16 +27,37 @@ import {
 
 const router = express.Router();
 const db = getDb();
+const PUBLIC_EVENTS = new Set([
+  'showroom_open', 'exterior_view', 'building_view', 'floor_select', 'unit_select',
+  'plan_view', 'interior_open', 'room_select', 'panorama_open', 'cta_contact', 'cta_whatsapp',
+]);
 
 const projectCompanyId = (projectId) => getProjectById(projectId)?.companyId ?? null;
 const sameCompany = (projectId, companyId) => Boolean(projectCompanyId(projectId) && projectCompanyId(projectId) === companyId);
+
+function toPublicProject(project) {
+  return {
+    id: project.id,
+    name: project.name,
+    slug: project.slug,
+    description: project.description,
+    status: project.status,
+    location: project.location,
+    branding: project.branding,
+    buildingReference: project.buildingReference,
+    environmentConfig: project.environmentConfig,
+  };
+}
 
 router.get('/platform/plans', (_req, res) => res.json(PLAN_CATALOG));
 
 router.post('/analytics/events', (req, res) => {
   const { projectId, event, sessionId, entityType, entityId, metadata, occurredAt } = req.body ?? {};
   if (!projectId || !event) return res.status(400).json({ message: 'projectId and event are required' });
-  if (!projectCompanyId(projectId)) return res.status(404).json({ message: 'Project not found' });
+  if (!PUBLIC_EVENTS.has(event)) return res.status(400).json({ message: 'Unsupported analytics event' });
+  const project = getProjectById(projectId);
+  if (!project) return res.status(404).json({ message: 'Project not found' });
+  if (project.status !== 'PUBLISHED') return res.status(409).json({ message: 'Analytics are available only for published projects' });
   try {
     res.status(201).json(recordAnalyticsEvent({ projectId, event, sessionId, entityType, entityId, metadata, occurredAt }));
   } catch (error) { res.status(400).json({ message: error.message }); }
@@ -87,12 +108,22 @@ router.get('/public/projects/:publicSlug/manifest', (req, res) => {
     const { project, publication } = result;
     res.json({
       contractVersion: '1.0',
-      project,
-      publication,
-      buildings: listProjectBuildings(project.id),
-      floors: listProjectFloors(project.id),
+      project: toPublicProject(project),
+      publication: {
+        publicSlug: publication.publicSlug,
+        publicUrl: publication.publicUrl,
+        title: publication.title,
+        description: publication.description,
+        thumbnail: publication.thumbnail,
+        buttonText: publication.buttonText,
+        customDomain: publication.customDomain,
+        status: publication.status,
+        isPublished: true,
+      },
+      buildings: listProjectBuildings(project.id).map(({ id, projectId, name, reference, metadata, createdAt }) => ({ id, projectId, name, reference, metadata, createdAt })),
+      floors: listProjectFloors(project.id).map(({ id, projectId, buildingId, number, name, metadata, createdAt }) => ({ id, projectId, buildingId, number, name, metadata, createdAt })),
       units: listProjectUnits(project.id),
-      plans: db.prepare('SELECT * FROM plans WHERE projectId = ? ORDER BY createdAt ASC').all(project.id),
+      plans: db.prepare('SELECT id, projectId, name, kind, filePath, description, createdAt FROM plans WHERE projectId = ? ORDER BY createdAt ASC').all(project.id),
       amenities: listProjectAmenities(project.id),
       assets: listProjectAssets(project.id),
       location: getProjectLocation(project.id),
