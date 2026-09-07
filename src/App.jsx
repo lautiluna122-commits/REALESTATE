@@ -7,6 +7,7 @@ import AdminDashboard from './admin/AdminDashboard';
 import ClientPortal from './client/ClientPortal';
 import { platformApi } from './platform/platformApi';
 import { ANALYTICS_EVENT, trackShowroomEvent } from './platform/analytics';
+import PublicManifestBridge from './platform/PublicManifestBridge';
 
 function ShowroomAnalyticsTracker({ slug }) {
   useEffect(() => {
@@ -25,6 +26,10 @@ function ShowroomAnalyticsTracker({ slug }) {
   return null;
 }
 
+function PublicShowroom({ slug }) {
+  return <PublicManifestBridge slug={slug}><ShowroomAnalyticsTracker slug={slug} /><CinematicShowroom /></PublicManifestBridge>;
+}
+
 export default function App() {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   const showroomSlug = path.match(/^\/(?:proyecto|embed)\/([^/]+)/)?.[1] ?? null;
@@ -33,6 +38,6 @@ export default function App() {
   if (path === '/studio') return <ProjectStudio />;
   if (path.startsWith('/cliente/')) return <ClientPortal />;
   if (path.startsWith('/proyecto/') && path.includes('/interior')) return <ApartmentInterior />;
-  if (path.startsWith('/proyecto/') || path.startsWith('/embed/')) return <><ShowroomAnalyticsTracker slug={showroomSlug} /><CinematicShowroom /></>;
+  if (path.startsWith('/proyecto/') || path.startsWith('/embed/')) return <PublicShowroom slug={showroomSlug} />;
   return <CinematicShowroom />;
 }
