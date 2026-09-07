@@ -1,8 +1,18 @@
 import express from 'express';
 import { getDb } from '../db.js';
-import { getProjectById } from './projectService.js';
+import {
+  getProjectById,
+  getPublishedProjectByPublicSlug,
+  listProjectBuildings,
+  listProjectFloors,
+  listProjectUnits,
+  listProjectAmenities,
+  listProjectAssets,
+  getProjectLocation,
+} from './projectService.js';
 import {
   PLAN_CATALOG,
+  transitionProject,
   recordAnalyticsEvent,
   getProjectAnalytics,
   createProjectVersion,
@@ -48,6 +58,46 @@ router.get('/admin/projects/:projectId/versions', (req, res) => {
   res.json(listProjectVersions(req.params.projectId));
 });
 
+router.post('/admin/projects/:projectId/lifecycle', (req, res) => {
+  const { status, versionId, actor } = req.body ?? {};
+  if (!status) return res.status(400).json({ message: 'status is required' });
+  try {
+    const project = transitionProject(req.params.projectId, status, { versionId, actor });
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+    res.json(project);
+  } catch (error) { res.status(400).json({ message: error.message }); }
+});
+
+router.get('/admin/projects/:projectId/platform-state', (req, res) => {
+  const project = getProjectById(req.params.projectId);
+  if (!project) return res.status(404).json({ message: 'Project not found' });
+  const versions = listProjectVersions(req.params.projectId);
+  const analytics = getProjectAnalytics(req.params.projectId);
+  const subscription = getCompanySubscription(project.companyId, req.params.projectId);
+  const publication = db.prepare('SELECT * FROM project_publications WHERE projectId = ? ORDER BY createdAt DESC LIMIT 1').get(req.params.projectId) ?? null;
+  res.json({ project, versions, analytics, subscription, publication });
+});
+
+router.get('/public/projects/:publicSlug/manifest', (req, res) => {
+  try {
+    const result = getPublishedProjectByPublicSlug(req.params.publicSlug);
+    if (!result) return res.status(404).json({ message: 'Project not found or not published' });
+    const { project, publication } = result;
+    res.json({
+      contractVersion: '1.0',
+      project,
+      publication,
+      buildings: listProjectBuildings(project.id),
+      floors: listProjectFloors(project.id),
+      units: listProjectUnits(project.id),
+      plans: db.prepare('SELECT * FROM plans WHERE projectId = ? ORDER BY createdAt ASC').all(project.id),
+      amenities: listProjectAmenities(project.id),
+      assets: listProjectAssets(project.id),
+      location: getProjectLocation(project.id),
+    });
+  } catch (error) { res.status(400).json({ message: error.message }); }
+});
+
 router.post('/admin/subscriptions', (req, res) => {
   const { companyId, planCode } = req.body ?? {};
   if (!companyId || !planCode || !PLAN_CATALOG[planCode]) return res.status(400).json({ message: 'companyId and valid planCode are required' });
@@ -68,16 +118,6 @@ router.post('/company/:companyId/service-requests', (req, res) => {
 
 router.get('/company/:companyId/service-requests', (req, res) => {
   res.json(listServiceRequests(req.params.companyId, req.query.projectId || null));
-});
-
-router.get('/admin/projects/:projectId/platform-state', (req, res) => {
-  const project = getProjectById(req.params.projectId);
-  if (!project) return res.status(404).json({ message: 'Project not found' });
-  const versions = listProjectVersions(req.params.projectId);
-  const analytics = getProjectAnalytics(req.params.projectId);
-  const subscription = getCompanySubscription(project.companyId, req.params.projectId);
-  const publication = db.prepare('SELECT * FROM project_publications WHERE projectId = ? ORDER BY createdAt DESC LIMIT 1').get(req.params.projectId) ?? null;
-  res.json({ project, versions, analytics, subscription, publication });
 });
 
 export default router;
