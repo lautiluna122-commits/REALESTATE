@@ -1,0 +1,87 @@
+import crypto from 'node:crypto';
+import { getDb } from '../db.js';
+
+const db = getDb();
+const json = (value) => JSON.stringify(value ?? {});
+const parse = (value) => { try { return value ? JSON.parse(value) : {}; } catch { return {}; } };
+
+export const PLAN_CATALOG = Object.freeze({
+  essential: { setupFrom: 3500, monthly: 149, annual: 1490 },
+  premium: { setupFrom: 6000, monthly: 249, annual: 2490 },
+  enterprise: { setupFrom: 10000, monthlyFrom: 500, annualFrom: 5000 },
+});
+
+export function ensureLifecycleSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_versions (id TEXT PRIMARY KEY, projectId TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', snapshot TEXT NOT NULL, createdBy TEXT, approvedAt TEXT, publishedAt TEXT, createdAt TEXT NOT NULL, FOREIGN KEY(projectId) REFERENCES projects(id), UNIQUE(projectId, version));
+    CREATE TABLE IF NOT EXISTS analytics_events (id TEXT PRIMARY KEY, projectId TEXT NOT NULL, sessionId TEXT, event TEXT NOT NULL, entityType TEXT, entityId TEXT, metadata TEXT, occurredAt TEXT NOT NULL, FOREIGN KEY(projectId) REFERENCES projects(id));
+    CREATE INDEX IF NOT EXISTS idx_analytics_project_time ON analytics_events(projectId, occurredAt);
+    CREATE INDEX IF NOT EXISTS idx_analytics_event ON analytics_events(projectId, event);
+    CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY, companyId TEXT NOT NULL, projectId TEXT, planCode TEXT NOT NULL, billingInterval TEXT NOT NULL DEFAULT 'year', status TEXT NOT NULL DEFAULT 'TRIAL', currency TEXT NOT NULL DEFAULT 'USD', amount REAL NOT NULL DEFAULT 0, startsAt TEXT NOT NULL, endsAt TEXT, renewalAt TEXT, createdAt TEXT NOT NULL, FOREIGN KEY(companyId) REFERENCES companies(id), FOREIGN KEY(projectId) REFERENCES projects(id));
+    CREATE TABLE IF NOT EXISTS service_requests (id TEXT PRIMARY KEY, companyId TEXT NOT NULL, projectId TEXT, type TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'NORMAL', title TEXT NOT NULL, description TEXT, status TEXT NOT NULL DEFAULT 'OPEN', requestedBy TEXT, resolvedAt TEXT, createdAt TEXT NOT NULL, FOREIGN KEY(companyId) REFERENCES companies(id), FOREIGN KEY(projectId) REFERENCES projects(id));
+  `);
+}
+
+export function recordAnalyticsEvent(input) {
+  ensureLifecycleSchema();
+  const id = crypto.randomUUID();
+  const occurredAt = input.occurredAt ?? new Date().toISOString();
+  db.prepare('INSERT INTO analytics_events (id,projectId,sessionId,event,entityType,entityId,metadata,occurredAt) VALUES (?,?,?,?,?,?,?,?)').run(id,input.projectId,input.sessionId ?? null,input.event,input.entityType ?? null,input.entityId ?? null,json(input.metadata),occurredAt);
+  return { id, ...input, occurredAt };
+}
+
+export function getProjectAnalytics(projectId, since = null) {
+  ensureLifecycleSchema();
+  const rows = since
+    ? db.prepare('SELECT event, COUNT(*) AS count FROM analytics_events WHERE projectId = ? AND occurredAt >= ? GROUP BY event ORDER BY count DESC').all(projectId, since)
+    : db.prepare('SELECT event, COUNT(*) AS count FROM analytics_events WHERE projectId = ? GROUP BY event ORDER BY count DESC').all(projectId);
+  return { projectId, events: rows, total: rows.reduce((sum, row) => sum + row.count, 0) };
+}
+
+export function createProjectVersion(projectId, snapshot, createdBy = null) {
+  ensureLifecycleSchema();
+  const latest = db.prepare('SELECT MAX(version) AS version FROM project_versions WHERE projectId = ?').get(projectId)?.version ?? 0;
+  const version = latest + 1;
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  db.prepare('INSERT INTO project_versions (id,projectId,version,status,snapshot,createdBy,createdAt) VALUES (?,?,?,?,?,?,?)').run(id,projectId,version,'DRAFT',json(snapshot),createdBy,createdAt);
+  return { id, projectId, version, status: 'DRAFT', snapshot, createdBy, createdAt };
+}
+
+export function listProjectVersions(projectId) {
+  ensureLifecycleSchema();
+  return db.prepare('SELECT * FROM project_versions WHERE projectId = ? ORDER BY version DESC').all(projectId).map((row) => ({ ...row, snapshot: parse(row.snapshot) }));
+}
+
+export function createSubscription(input) {
+  ensureLifecycleSchema();
+  const id = crypto.randomUUID();
+  const startsAt = input.startsAt ?? new Date().toISOString();
+  const createdAt = new Date().toISOString();
+  db.prepare('INSERT INTO subscriptions (id,companyId,projectId,planCode,billingInterval,status,currency,amount,startsAt,endsAt,renewalAt,createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id,input.companyId,input.projectId ?? null,input.planCode,input.billingInterval ?? 'year',input.status ?? 'TRIAL',input.currency ?? 'USD',Number(input.amount ?? 0),startsAt,input.endsAt ?? null,input.renewalAt ?? null,createdAt);
+  return { id, ...input, startsAt, createdAt };
+}
+
+export function getCompanySubscription(companyId, projectId = null) {
+  ensureLifecycleSchema();
+  const row = projectId
+    ? db.prepare('SELECT * FROM subscriptions WHERE companyId = ? AND projectId = ? ORDER BY createdAt DESC LIMIT 1').get(companyId, projectId)
+    : db.prepare('SELECT * FROM subscriptions WHERE companyId = ? ORDER BY createdAt DESC LIMIT 1').get(companyId);
+  return row ?? null;
+}
+
+export function createServiceRequest(input) {
+  ensureLifecycleSchema();
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  db.prepare('INSERT INTO service_requests (id,companyId,projectId,type,priority,title,description,status,requestedBy,createdAt) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,input.companyId,input.projectId ?? null,input.type,input.priority ?? 'NORMAL',input.title,input.description ?? '',input.status ?? 'OPEN',input.requestedBy ?? null,createdAt);
+  return { id, ...input, status: input.status ?? 'OPEN', createdAt };
+}
+
+export function listServiceRequests(companyId, projectId = null) {
+  ensureLifecycleSchema();
+  const rows = projectId ? db.prepare('SELECT * FROM service_requests WHERE companyId = ? AND projectId = ? ORDER BY createdAt DESC').all(companyId, projectId) : db.prepare('SELECT * FROM service_requests WHERE companyId = ? ORDER BY createdAt DESC').all(companyId);
+  return rows;
+}
+
+ensureLifecycleSchema();
