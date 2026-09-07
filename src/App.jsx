@@ -1,37 +1,17 @@
-import { useEffect } from 'react';
 import './experience/cinematic-polish.css';
 import CinematicShowroom from './experience/CinematicShowroom';
 import ApartmentInterior from './experience/ApartmentInterior';
 import ProjectStudio from './admin/ProjectStudio';
 import AdminDashboard from './admin/AdminDashboard';
 import ClientPortal from './client/ClientPortal';
-import { platformApi } from './platform/platformApi';
-import { ANALYTICS_EVENT, trackShowroomEvent } from './platform/analytics';
-import PublicManifestBridge from './platform/PublicManifestBridge';
-
-function ShowroomAnalyticsTracker({ slug }) {
-  useEffect(() => {
-    let active = true;
-    async function track() {
-      try {
-        const project = await platformApi.getProjectBySlug(slug);
-        if (active && project?.id) await trackShowroomEvent(project.id, ANALYTICS_EVENT.SHOWROOM_OPEN, { metadata: { surface: window.location.pathname.startsWith('/embed/') ? 'embed' : 'showroom' } });
-      } catch {
-        // The visual showroom remains available when the API is offline.
-      }
-    }
-    track();
-    return () => { active = false; };
-  }, [slug]);
-  return null;
-}
+import { PublicExperienceLoader } from './platform/index.js';
 
 function PublicShowroom({ slug }) {
-  return <PublicManifestBridge slug={slug}><ShowroomAnalyticsTracker slug={slug} /><CinematicShowroom /></PublicManifestBridge>;
+  return <PublicExperienceLoader slug={slug} />;
 }
 
 function PublicInterior({ slug }) {
-  return <PublicManifestBridge slug={slug}><ApartmentInterior /></PublicManifestBridge>;
+  return <PublicExperienceLoader slug={slug} interior />;
 }
 
 export default function App() {
