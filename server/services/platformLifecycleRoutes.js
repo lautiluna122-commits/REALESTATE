@@ -25,6 +25,7 @@ import {
   createServiceRequest,
   listServiceRequests,
 } from './platformLifecycleService.js';
+import { authenticateUser, createSession, revokeSession } from './authService.js';
 import { requireSuperAdmin, requireCompanyAccess } from './authMiddleware.js';
 
 const router = express.Router();
@@ -33,6 +34,11 @@ const PUBLIC_EVENTS = new Set([
   'showroom_open', 'exterior_view', 'building_view', 'floor_select', 'unit_select',
   'plan_view', 'interior_open', 'room_select', 'panorama_open', 'cta_contact', 'cta_whatsapp',
 ]);
+
+const bearerToken = (req) => {
+  const header = req.get('authorization') || '';
+  return header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+};
 
 const projectCompanyId = (projectId) => getProjectById(projectId)?.companyId ?? null;
 const sameCompany = (projectId, companyId) => Boolean(projectCompanyId(projectId) && projectCompanyId(projectId) === companyId);
@@ -50,6 +56,28 @@ function toPublicProject(project) {
     environmentConfig: project.environmentConfig,
   };
 }
+
+router.post('/auth/login', (req, res) => {
+  const { email, password } = req.body ?? {};
+  const user = authenticateUser(email, password);
+  if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+  const session = createSession(user.id);
+  res.json({ ...session, user });
+});
+
+router.post('/auth/logout', (req, res) => {
+  revokeSession(bearerToken(req));
+  res.status(204).end();
+});
+
+router.get('/auth/me', (req, res) => {
+  const token = bearerToken(req);
+  if (!token) return res.status(401).json({ message: 'Authentication required' });
+  const { getSessionUser } = require('./authService.js');
+  const user = getSessionUser(token);
+  if (!user) return res.status(401).json({ message: 'Session expired or invalid' });
+  res.json({ user });
+});
 
 router.use((req, res, next) => {
   if (req.path.startsWith('/admin')) return requireSuperAdmin(req, res, next);
