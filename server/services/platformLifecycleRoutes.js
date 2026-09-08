@@ -25,7 +25,7 @@ import {
   createServiceRequest,
   listServiceRequests,
 } from './platformLifecycleService.js';
-import { authenticateUser, createSession, revokeSession } from './authService.js';
+import { authenticateUser, createSession, getSessionUser, revokeSession } from './authService.js';
 import { requireSuperAdmin, requireCompanyAccess } from './authMiddleware.js';
 
 const router = express.Router();
@@ -71,10 +71,7 @@ router.post('/auth/logout', (req, res) => {
 });
 
 router.get('/auth/me', (req, res) => {
-  const token = bearerToken(req);
-  if (!token) return res.status(401).json({ message: 'Authentication required' });
-  const { getSessionUser } = require('./authService.js');
-  const user = getSessionUser(token);
+  const user = getSessionUser(bearerToken(req));
   if (!user) return res.status(401).json({ message: 'Session expired or invalid' });
   res.json({ user });
 });
