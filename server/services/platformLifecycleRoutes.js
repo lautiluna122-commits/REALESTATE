@@ -25,6 +25,7 @@ import {
   createServiceRequest,
   listServiceRequests,
 } from './platformLifecycleService.js';
+import { requireSuperAdmin, requireCompanyAccess } from './authMiddleware.js';
 
 const router = express.Router();
 const db = getDb();
@@ -50,6 +51,19 @@ function toPublicProject(project) {
   };
 }
 
+router.use((req, res, next) => {
+  if (req.path.startsWith('/admin')) return requireSuperAdmin(req, res, next);
+  if (req.path.startsWith('/company')) {
+    const resource = req.method === 'PATCH' && req.path.includes('/units/')
+      ? 'inventory'
+      : req.method === 'POST' && req.path.includes('/service-requests')
+        ? 'service'
+        : null;
+    return requireCompanyAccess(resource)(req, res, next);
+  }
+  next();
+});
+
 router.get('/platform/plans', (_req, res) => res.json(PLAN_CATALOG));
 
 router.post('/analytics/events', (req, res) => {
@@ -73,7 +87,7 @@ router.post('/admin/projects/:projectId/versions', (req, res) => {
   if (!getProjectById(req.params.projectId)) return res.status(404).json({ message: 'Project not found' });
   try {
     const snapshot = req.body?.snapshot ?? req.body;
-    res.status(201).json(createProjectVersion(req.params.projectId, snapshot, req.body?.createdBy ?? null));
+    res.status(201).json(createProjectVersion(req.params.projectId, snapshot, req.auth.id));
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
 
@@ -83,10 +97,10 @@ router.get('/admin/projects/:projectId/versions', (req, res) => {
 });
 
 router.post('/admin/projects/:projectId/lifecycle', (req, res) => {
-  const { status, versionId, actor } = req.body ?? {};
+  const { status, versionId } = req.body ?? {};
   if (!status) return res.status(400).json({ message: 'status is required' });
   try {
-    const project = transitionProject(req.params.projectId, status, { versionId, actor });
+    const project = transitionProject(req.params.projectId, status, { versionId, actor: req.auth.id });
     if (!project) return res.status(404).json({ message: 'Project not found' });
     res.json(project);
   } catch (error) { res.status(400).json({ message: error.message }); }
@@ -100,12 +114,12 @@ router.post('/admin/projects/:projectId/publish', (req, res) => {
   const version = versions[0];
   if (!version || version.status !== 'APPROVED') return res.status(409).json({ message: 'An approved project version is required before publication' });
   try {
-    transitionProject(project.id, 'PUBLISHED', { versionId: version.id, actor: req.body?.actor ?? null });
+    transitionProject(project.id, 'PUBLISHED', { versionId: version.id, actor: req.auth.id });
     try {
-      const result = publishProject(project.id, req.body || {});
+      const result = publishProject(project.id, { ...req.body, actor: req.auth.id });
       res.json(result);
     } catch (publicationError) {
-      transitionProject(project.id, 'APPROVED', { versionId: version.id, actor: req.body?.actor ?? null });
+      transitionProject(project.id, 'APPROVED', { versionId: version.id, actor: req.auth.id });
       throw publicationError;
     }
   } catch (error) { res.status(400).json({ message: error.message }); }
@@ -189,7 +203,7 @@ router.get('/company/:companyId/subscription', (req, res) => {
 router.post('/company/:companyId/service-requests', (req, res) => {
   const { projectId } = req.body ?? {};
   if (projectId && !sameCompany(projectId, req.params.companyId)) return res.status(403).json({ message: 'Project does not belong to company' });
-  try { res.status(201).json(createServiceRequest({ ...req.body, companyId: req.params.companyId })); }
+  try { res.status(201).json(createServiceRequest({ ...req.body, companyId: req.params.companyId, requestedBy: req.auth.id })); }
   catch (error) { res.status(400).json({ message: error.message }); }
 });
 
