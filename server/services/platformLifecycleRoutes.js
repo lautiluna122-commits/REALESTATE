@@ -57,6 +57,48 @@ function toPublicProject(project) {
   };
 }
 
+function toPublicUnit(unit) {
+  return {
+    id: unit.id,
+    buildingId: unit.buildingId,
+    floorId: unit.floorId,
+    number: unit.number,
+    surface: unit.surface,
+    bedrooms: unit.bedrooms,
+    bathrooms: unit.bathrooms,
+    terrace: unit.terrace,
+    price: unit.price,
+    currency: unit.currency,
+    status: unit.status,
+    description: unit.description,
+    planId: unit.planId,
+    images: Array.isArray(unit.images) ? unit.images : [],
+  };
+}
+
+function toPublicAsset(asset) {
+  return {
+    id: asset.id,
+    entityType: asset.entityType,
+    entityId: asset.entityId,
+    name: asset.name,
+    kind: asset.kind,
+    url: asset.url || null,
+    mimeType: asset.mimeType || null,
+    isPrimary: Boolean(asset.isPrimary),
+  };
+}
+
+function toPublicPlan(plan) {
+  return {
+    id: plan.id,
+    name: plan.name,
+    kind: plan.kind,
+    description: plan.description,
+    filePath: plan.filePath || null,
+  };
+}
+
 router.post('/auth/login', (req, res) => {
   const { email, password } = req.body ?? {};
   const user = authenticateUser(email, password);
@@ -165,6 +207,7 @@ router.get('/public/projects/:publicSlug/manifest', (req, res) => {
     const result = getPublishedProjectByPublicSlug(req.params.publicSlug);
     if (!result) return res.status(404).json({ message: 'Project not found or not published' });
     const { project, publication } = result;
+    const plans = db.prepare('SELECT id, projectId, name, kind, filePath, description, createdAt FROM plans WHERE projectId = ? ORDER BY createdAt ASC').all(project.id);
     res.json({
       contractVersion: '1.0',
       project: toPublicProject(project),
@@ -181,10 +224,10 @@ router.get('/public/projects/:publicSlug/manifest', (req, res) => {
       },
       buildings: listProjectBuildings(project.id).map(({ id, projectId, name, reference, metadata, createdAt }) => ({ id, projectId, name, reference, metadata, createdAt })),
       floors: listProjectFloors(project.id).map(({ id, projectId, buildingId, number, name, metadata, createdAt }) => ({ id, projectId, buildingId, number, name, metadata, createdAt })),
-      units: listProjectUnits(project.id),
-      plans: db.prepare('SELECT id, projectId, name, kind, filePath, description, createdAt FROM plans WHERE projectId = ? ORDER BY createdAt ASC').all(project.id),
-      amenities: listProjectAmenities(project.id),
-      assets: listProjectAssets(project.id),
+      units: listProjectUnits(project.id).map(toPublicUnit),
+      plans: plans.map(toPublicPlan),
+      amenities: listProjectAmenities(project.id).map(({ id, projectId, name, description, category, createdAt }) => ({ id, projectId, name, description, category, createdAt })),
+      assets: listProjectAssets(project.id).map(toPublicAsset),
       location: getProjectLocation(project.id),
     });
   } catch (error) { res.status(400).json({ message: error.message }); }
