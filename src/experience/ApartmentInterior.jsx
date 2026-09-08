@@ -1,9 +1,10 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, OrbitControls, useGLTF, useTexture } from '@react-three/drei';
-import { Suspense, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Vector3 } from 'three';
 import { getProjectBySlug, getProjectUnits } from '../platform/projectRegistry';
 import { getShowroomEngine, resolveShowroomAsset } from './showroomEngine';
+import { ANALYTICS_EVENT, trackShowroomEvent } from '../platform/analytics';
 import './apartment-interior.css';
 
 const ROOMS = [
@@ -83,6 +84,32 @@ export default function ApartmentInterior() {
     interiorModel: resolveShowroomAsset(project, 'interiorRender'),
     panorama360: resolveShowroomAsset(project, 'panorama360'),
   };
+
+  useEffect(() => {
+    if (!unit) return;
+    trackShowroomEvent(project.id, ANALYTICS_EVENT.UNIT_SELECT, {
+      entityType: 'unit',
+      entityId: unit.id,
+      metadata: { slug, surface: 'interior', unit: unit.number },
+    });
+  }, [unit?.id, project.id, slug]);
+
+  useEffect(() => {
+    trackShowroomEvent(project.id, ANALYTICS_EVENT.ROOM_SELECT, {
+      entityType: 'room',
+      entityId: room,
+      metadata: { slug, room, unitId: unit?.id ?? null },
+    });
+  }, [room, project.id, slug, unit?.id]);
+
+  useEffect(() => {
+    if (!runtimeAssets.panorama360?.path) return;
+    trackShowroomEvent(project.id, ANALYTICS_EVENT.PANORAMA_OPEN, {
+      entityType: 'asset',
+      entityId: runtimeAssets.panorama360.id ?? runtimeAssets.panorama360.path,
+      metadata: { slug, unitId: unit?.id ?? null },
+    });
+  }, [project.id, slug, unit?.id, runtimeAssets.panorama360?.path, runtimeAssets.panorama360?.id]);
 
   return <div className={`apartment-interior ${night ? 'night' : ''}`}>
     <header className="ai-nav">
