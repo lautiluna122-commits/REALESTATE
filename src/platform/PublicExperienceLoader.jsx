@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { platformApi } from './platformApi';
+import { ANALYTICS_EVENT, trackShowroomEvent } from './analytics';
 
 const CinematicShowroom = lazy(() => import('../experience/CinematicShowroom'));
 const ApartmentInterior = lazy(() => import('../experience/ApartmentInterior'));
@@ -60,10 +61,28 @@ export default function PublicExperienceLoader({ slug, interior = false }) {
     return () => { active = false; };
   }, [slug]);
 
+  useEffect(() => {
+    if (!ready) return;
+    trackShowroomEvent({
+      projectId: projectIdForSlug(slug),
+      event: interior ? ANALYTICS_EVENT.INTERIOR_OPEN : ANALYTICS_EVENT.SHOWROOM_OPEN,
+      metadata: { slug, surface: interior ? 'interior' : 'showroom' },
+    });
+  }, [ready, slug, interior]);
+
   if (!ready) return <Loading />;
   return (
     <Suspense fallback={<Loading />}>
       {interior ? <ApartmentInterior /> : <CinematicShowroom />}
     </Suspense>
   );
+}
+
+function projectIdForSlug(slug) {
+  try {
+    const cached = window.localStorage.getItem(`realestate:project:${slug}`);
+    return cached ? JSON.parse(cached)?.project?.id ?? null : null;
+  } catch {
+    return null;
+  }
 }
