@@ -29,7 +29,7 @@ import {
   ensureCompanyAccess,
 } from './services/projectService.js';
 import platformLifecycleRoutes from './services/platformLifecycleRoutes.js';
-import { requireSuperAdmin, requireCompanyAccess } from './services/authMiddleware.js';
+import { requireAuth, requireSuperAdmin, requireCompanyAccess } from './services/authMiddleware.js';
 
 const app = express();
 const db = getDb();
@@ -42,59 +42,44 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'real-estate-platform', timestamp: new Date().toISOString() });
 });
 
-// Authentication and public showroom routes are exposed by the platform router.
 app.use('/api', platformLifecycleRoutes);
-
-// Studio/operator API: only authenticated REALESTATE owners can mutate it.
 app.use('/api/admin', requireSuperAdmin);
 
 app.get('/api/admin/companies', (_req, res) => res.json(listCompanies()));
-
 app.post('/api/admin/companies', (req, res) => {
   const { name, slug } = req.body ?? {};
   if (!name || !slug) return res.status(400).json({ message: 'name and slug are required' });
   try { return res.status(201).json(createCompany({ name, slug })); }
   catch (error) { return res.status(400).json({ message: error.message }); }
 });
-
-app.get('/api/admin/companies/:companyId/projects', (req, res) => {
-  res.json(listProjectsByCompany(req.params.companyId));
-});
-
+app.get('/api/admin/companies/:companyId/projects', (req, res) => res.json(listProjectsByCompany(req.params.companyId)));
 app.post('/api/admin/projects', (req, res) => {
   const payload = req.body ?? {};
   if (!payload.companyId || !payload.name || !payload.slug) return res.status(400).json({ message: 'companyId, name and slug are required' });
   try { return res.status(201).json(createProject(payload)); }
   catch (error) { return res.status(400).json({ message: error.message }); }
 });
-
 app.get('/api/admin/projects/:projectId', (req, res) => {
   const project = getProjectById(req.params.projectId);
   if (!project) return res.status(404).json({ message: 'Project not found' });
   res.json(project);
 });
-
 app.post('/api/admin/projects/:projectId/buildings', (req, res) => {
   try { return res.status(201).json(createBuilding({ projectId: req.params.projectId, ...req.body })); }
   catch (error) { return res.status(400).json({ message: error.message }); }
 });
-
 app.get('/api/admin/projects/:projectId/buildings', (req, res) => res.json(listProjectBuildings(req.params.projectId)));
-
 app.post('/api/admin/projects/:projectId/floors', (req, res) => {
   const { buildingId, number, name, metadata } = req.body ?? {};
   if (!buildingId || Number.isNaN(Number(number))) return res.status(400).json({ message: 'buildingId and valid number are required' });
   try { return res.status(201).json(createFloor({ projectId: req.params.projectId, buildingId, number: Number(number), name, metadata })); }
   catch (error) { return res.status(400).json({ message: error.message }); }
 });
-
 app.get('/api/admin/projects/:projectId/floors', (req, res) => res.json(listProjectFloors(req.params.projectId, req.query.buildingId || null)));
-
 app.post('/api/admin/projects/:projectId/units', (req, res) => {
   try { return res.status(201).json(createUnit({ projectId: req.params.projectId, ...(req.body ?? {}) })); }
   catch (error) { return res.status(400).json({ message: error.message }); }
 });
-
 app.get('/api/admin/projects/:projectId/units', (req, res) => res.json(listProjectUnits(req.params.projectId)));
 app.get('/api/admin/projects/:projectId/units/:unitId', (req, res) => {
   const unit = getUnitById(req.params.projectId, req.params.unitId);
@@ -108,7 +93,6 @@ app.patch('/api/admin/projects/:projectId/units/:unitId', (req, res) => {
     res.json(unit);
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
-
 app.post('/api/admin/projects/:projectId/plans', (req, res) => {
   try { res.status(201).json(createPlan({ projectId: req.params.projectId, ...(req.body ?? {}) })); }
   catch (error) { res.status(400).json({ message: error.message }); }
@@ -141,7 +125,6 @@ app.post('/api/admin/projects/:projectId/publish-direct', (req, res) => {
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
 
-// Client portal API: authenticated tenant users, scoped to their company.
 app.use('/api/company', requireCompanyAccess());
 app.get('/api/company/:companyId/projects', (req, res) => res.json(listProjectsByCompany(req.params.companyId)));
 app.get('/api/company/:companyId/projects/:projectId', (req, res) => {
@@ -151,7 +134,6 @@ app.get('/api/company/:companyId/projects/:projectId', (req, res) => {
   res.json(project);
 });
 
-// Public read-only showroom routes.
 app.get('/api/public/projects', (_req, res) => res.json(listPublicProjects()));
 app.get('/api/public/projects/:publicSlug', (req, res) => {
   try {
@@ -161,11 +143,12 @@ app.get('/api/public/projects/:publicSlug', (req, res) => {
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
 
-// Kept only as an authenticated compatibility check; no anonymous tenant switching.
-app.post('/api/auth/tenant-access', requireCompanyAccess(), (req, res) => {
-  res.json({ allowed: ensureCompanyAccess(req.auth.companyId, req.body?.targetCompanyId) });
+app.post('/api/auth/tenant-access', requireAuth, (req, res) => {
+  const targetCompanyId = req.body?.targetCompanyId;
+  const allowed = req.auth.role === 'SUPER_ADMIN'
+    ? Boolean(targetCompanyId)
+    : ensureCompanyAccess(req.auth.companyId, targetCompanyId);
+  res.json({ allowed });
 });
 
-app.listen(port, () => {
-  console.log(`Real Estate Platform API listening on http://localhost:${port}`);
-});
+app.listen(port, () => console.log(`Real Estate Platform API listening on http://localhost:${port}`));
