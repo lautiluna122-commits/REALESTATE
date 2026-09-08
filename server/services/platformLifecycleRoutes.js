@@ -101,8 +101,13 @@ router.post('/admin/projects/:projectId/publish', (req, res) => {
   if (!version || version.status !== 'APPROVED') return res.status(409).json({ message: 'An approved project version is required before publication' });
   try {
     transitionProject(project.id, 'PUBLISHED', { versionId: version.id, actor: req.body?.actor ?? null });
-    const result = publishProject(project.id, req.body || {});
-    res.json(result);
+    try {
+      const result = publishProject(project.id, req.body || {});
+      res.json(result);
+    } catch (publicationError) {
+      transitionProject(project.id, 'APPROVED', { versionId: version.id, actor: req.body?.actor ?? null });
+      throw publicationError;
+    }
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
 
