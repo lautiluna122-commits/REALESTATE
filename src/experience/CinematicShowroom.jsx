@@ -4,6 +4,7 @@ import { Component, Suspense, useEffect, useMemo, useRef, useState } from 'react
 import { Vector3 } from 'three';
 import { getProjectBySlug } from '../platform/projectRegistry';
 import { STATUS_LABELS } from '../domain/platformModels';
+import { ANALYTICS_EVENT, trackShowroomEvent } from '../platform/analytics';
 import { getShowroomEngine, resolveShowroomAsset } from './showroomEngine';
 import { getShowroomTheme } from './showroomTheme';
 import './cinematic-showroom.css';
@@ -120,10 +121,19 @@ export default function CinematicShowroom() {
     }
   }, []);
   useEffect(() => { if (!tour || !interior) return undefined; const id = window.setInterval(() => setRoom((current) => rooms[(rooms.findIndex((r) => r.id === current) + 1) % rooms.length].id), 4200); return () => window.clearInterval(id); }, [tour, interior]);
+  useEffect(() => { trackShowroomEvent(project.id, interior ? ANALYTICS_EVENT.INTERIOR_OPEN : ANALYTICS_EVENT.EXTERIOR_VIEW, { metadata: { slug, surface: interior ? 'interior' : 'exterior', mode } }); }, [interior, project.id, mode]);
 
+  const selectUnit = (unit) => {
+    setSelectedUnit(unit); setSelectedFloor(unit.floor); setMode('close');
+    trackShowroomEvent(project.id, ANALYTICS_EVENT.UNIT_SELECT, { entityType: 'unit', entityId: unit.id, metadata: { slug, surface: 'showroom', unit: unit.number, floor: unit.floor } });
+  };
+  const selectFloor = (floor) => {
+    setSelectedFloor(floor); setMode('close');
+    trackShowroomEvent(project.id, ANALYTICS_EVENT.FLOOR_SELECT, { entityType: 'floor', entityId: String(floor), metadata: { slug, floor } });
+  };
   const enter = (unit) => {
-    setSelectedUnit(unit); setSelectedFloor(unit.floor); setInterior(true); setRoom('living'); setTour(false);
-    window.history.replaceState({}, '', `/proyecto/${project.slug}?unit=${encodeURIComponent(unit.id ?? unit.number)}`);
+    trackShowroomEvent(project.id, ANALYTICS_EVENT.INTERIOR_OPEN, { entityType: 'unit', entityId: unit.id, metadata: { slug, surface: 'showroom', unit: unit.number, floor: unit.floor } });
+    window.location.assign(`/proyecto/${project.slug}/interior?unit=${encodeURIComponent(unit.id ?? unit.number)}`);
   };
   const backToBuilding = () => { setInterior(false); window.history.replaceState({}, '', `/proyecto/${project.slug}`); };
   const available = units.filter((u) => u.status === 'AVAILABLE').length;
@@ -131,8 +141,8 @@ export default function CinematicShowroom() {
 
   return <div className={`cin-showroom ${interior ? 'cin-interior' : ''} ${night ? 'cin-night' : ''}`} style={{ '--cin-primary': theme.branding.primary, '--cin-accent': theme.branding.accent, '--cin-font': theme.typography.font }}>
     <header className="cin-nav"><div className="cin-brand">{theme.branding.logo ? <img src={theme.branding.logo} alt="" /> : <span>RE</span>}<div><b>{project.name ?? 'REAL ESTATE'}</b><small>DIGITAL PROPERTY EXPERIENCE · {engine.mode.toUpperCase()}</small></div></div><div className="cin-nav-actions">{interior && <button onClick={backToBuilding}>← Edificio</button>}<button onClick={() => setNight((v) => !v)}>{night ? '☼ Día' : '☾ Noche'}</button>{!embed && <a href={`/cliente/${project.slug}`}>Panel</a>}</div></header>
-    <main className="cin-stage"><Scene interior={interior} room={room} mode={mode} selectedFloor={selectedFloor} selectedUnit={selectedUnit} night={night} onSelectUnit={(u) => { setSelectedUnit(u); setSelectedFloor(u.floor); setMode('close'); }} buildingPath={buildingPath} />
-      {!interior ? <div className="cin-overlay"><div className="cin-copy"><span>{content.eyebrow}</span><h1>{content.heroTitle ?? project.name}</h1><p>{content.heroSubtitle}</p><div className="cin-actions"><button className="cin-primary" onClick={() => setMode('building')}>Explorar edificio ↗</button><button className="cin-secondary" onClick={() => setTour((v) => !v)}>{tour ? 'Detener recorrido' : 'Tour cinematográfico'}</button></div></div><div className="cin-floorbar"><small>PISOS</small><button className={!selectedFloor ? 'active' : ''} onClick={() => { setSelectedFloor(null); setMode('master'); }}>TODOS</button>{floors.map((f) => <button key={f} className={selectedFloor === f ? 'active' : ''} onClick={() => { setSelectedFloor(f); setMode('close'); }}>{String(f).padStart(2, '0')}</button>)}</div>{selectedUnit && <UnitCard unit={selectedUnit} onEnter={() => enter(selectedUnit)} onClose={() => setSelectedUnit(null)} />}<div className="cin-bottom"><span>{units.length} unidades</span><span>{available} disponibles</span><span>desde {money.format(fromPrice)}</span><span>{engine.renderer} · interior · 360°</span></div></div> : <div className="cin-interior-ui"><div className="cin-interior-head"><span>{content.interiorEyebrow} · UNIDAD {selectedUnit?.number ?? '—'}</span><h1>{selectedUnit?.type ?? 'Apartamento'}</h1><p>{selectedUnit?.surface ?? selectedUnit?.area ?? 0} m² · {selectedUnit?.bedrooms ?? 0} dormitorios</p></div><div className="cin-roombar">{rooms.map((r) => <button key={r.id} className={room === r.id ? 'active' : ''} onClick={() => setRoom(r.id)}>{r.label}</button>)}<button className={tour ? 'active' : ''} onClick={() => setTour((v) => !v)}>{tour ? 'Pausar' : 'Recorrido'}</button></div><div className="cin-interior-hint">{content.interiorText} · ARRASTRÁ PARA MIRAR · ACERCÁ PARA EXPLORAR</div></div>}
+    <main className="cin-stage"><Scene interior={interior} room={room} mode={mode} selectedFloor={selectedFloor} selectedUnit={selectedUnit} night={night} onSelectUnit={selectUnit} buildingPath={buildingPath} />
+      {!interior ? <div className="cin-overlay"><div className="cin-copy"><span>{content.eyebrow}</span><h1>{content.heroTitle ?? project.name}</h1><p>{content.heroSubtitle}</p><div className="cin-actions"><button className="cin-primary" onClick={() => setMode('building')}>Explorar edificio ↗</button><button className="cin-secondary" onClick={() => setTour((v) => !v)}>{tour ? 'Detener recorrido' : 'Tour cinematográfico'}</button></div></div><div className="cin-floorbar"><small>PISOS</small><button className={!selectedFloor ? 'active' : ''} onClick={() => { setSelectedFloor(null); setMode('master'); }}>TODOS</button>{floors.map((f) => <button key={f} className={selectedFloor === f ? 'active' : ''} onClick={() => selectFloor(f)}>{String(f).padStart(2, '0')}</button>)}</div>{selectedUnit && <UnitCard unit={selectedUnit} onEnter={() => enter(selectedUnit)} onClose={() => setSelectedUnit(null)} />}<div className="cin-bottom"><span>{units.length} unidades</span><span>{available} disponibles</span><span>desde {money.format(fromPrice)}</span><span>{engine.renderer} · interior · 360°</span></div></div> : <div className="cin-interior-ui"><div className="cin-interior-head"><span>{content.interiorEyebrow} · UNIDAD {selectedUnit?.number ?? '—'}</span><h1>{selectedUnit?.type ?? 'Apartamento'}</h1><p>{selectedUnit?.surface ?? selectedUnit?.area ?? 0} m² · {selectedUnit?.bedrooms ?? 0} dormitorios</p></div><div className="cin-roombar">{rooms.map((r) => <button key={r.id} className={room === r.id ? 'active' : ''} onClick={() => { setRoom(r.id); trackShowroomEvent(project.id, ANALYTICS_EVENT.ROOM_SELECT, { entityType: 'room', entityId: r.id, metadata: { slug, room: r.id, unitId: selectedUnit?.id ?? null } }); }}>{r.label}</button>)}<button className={tour ? 'active' : ''} onClick={() => setTour((v) => !v)}>{tour ? 'Pausar' : 'Recorrido'}</button></div><div className="cin-interior-hint">{content.interiorText} · ARRASTRÁ PARA MIRAR · ACERCÁ PARA EXPLORAR</div></div>}
     </main>
     {!interior && !embed && <section className="cin-sales-strip"><div><span>{content.introTitle}</span><h2>No mires el departamento.<br /><em>Entrá.</em></h2></div><p>{content.introText}</p><button className="cin-primary" onClick={() => units[0] && enter(units[0])}>Entrar a una unidad ↗</button></section>}
   </div>;
