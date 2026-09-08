@@ -9,7 +9,11 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbFile = path.join(dataDir, isTestEnv ? 'platform.test.sqlite' : 'platform.sqlite');
+// Node's test runner may execute test files in parallel worker processes. A single
+// shared SQLite test file makes those workers race while deleting/opening the DB
+// (and its WAL/SHM sidecars), producing SQLITE_IOERR_DELETE_NOENT. Keep one DB
+// per worker process instead of unlinking a shared file during module import.
+const dbFile = path.join(dataDir, isTestEnv ? `platform.test.${process.pid}.sqlite` : 'platform.sqlite');
 if (isTestEnv && fs.existsSync(dbFile)) {
   fs.unlinkSync(dbFile);
 }
