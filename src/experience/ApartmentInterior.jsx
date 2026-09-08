@@ -74,7 +74,11 @@ export default function ApartmentInterior() {
   const project = getProjectBySlug(slug);
   const units = getProjectUnits(project);
   const engine = getShowroomEngine(project);
-  const [unitId, setUnitId] = useState(units[0]?.id ?? null);
+  const initialUnit = new URLSearchParams(window.location.search).get('unit');
+  const [unitId, setUnitId] = useState(() => {
+    const match = units.find((item) => String(item.id) === initialUnit || String(item.number) === initialUnit);
+    return match?.id ?? units[0]?.id ?? null;
+  });
   const [room, setRoom] = useState('living');
   const [night, setNight] = useState(false);
   const unit = units.find((item) => item.id === unitId) ?? units[0];
@@ -88,16 +92,14 @@ export default function ApartmentInterior() {
   useEffect(() => {
     if (!unit) return;
     trackShowroomEvent(project.id, ANALYTICS_EVENT.UNIT_SELECT, {
-      entityType: 'unit',
-      entityId: unit.id,
+      entityType: 'unit', entityId: unit.id,
       metadata: { slug, surface: 'interior', unit: unit.number },
     });
   }, [unit?.id, project.id, slug]);
 
   useEffect(() => {
     trackShowroomEvent(project.id, ANALYTICS_EVENT.ROOM_SELECT, {
-      entityType: 'room',
-      entityId: room,
+      entityType: 'room', entityId: room,
       metadata: { slug, room, unitId: unit?.id ?? null },
     });
   }, [room, project.id, slug, unit?.id]);
@@ -105,11 +107,20 @@ export default function ApartmentInterior() {
   useEffect(() => {
     if (!runtimeAssets.panorama360?.path) return;
     trackShowroomEvent(project.id, ANALYTICS_EVENT.PANORAMA_OPEN, {
-      entityType: 'asset',
-      entityId: runtimeAssets.panorama360.id ?? runtimeAssets.panorama360.path,
+      entityType: 'asset', entityId: runtimeAssets.panorama360.id ?? runtimeAssets.panorama360.path,
       metadata: { slug, unitId: unit?.id ?? null },
     });
   }, [project.id, slug, unit?.id, runtimeAssets.panorama360?.path, runtimeAssets.panorama360?.id]);
+
+  const openClientPortal = () => {
+    trackShowroomEvent(project.id, ANALYTICS_EVENT.CTA_CONTACT, {
+      entityType: 'unit', entityId: unit?.id ?? null,
+      metadata: { slug, surface: 'interior', action: 'client_portal' },
+    });
+    window.location.assign(`/cliente/${project.slug}`);
+  };
+
+  const backToShowroom = () => window.location.assign(`/proyecto/${project.slug}`);
 
   return <div className={`apartment-interior ${night ? 'night' : ''}`}>
     <header className="ai-nav">
@@ -117,13 +128,15 @@ export default function ApartmentInterior() {
       <div className="ai-actions">
         <label>UNIDAD <select value={unit?.id ?? ''} onChange={(event) => setUnitId(event.target.value)}>{units.map((item) => <option key={item.id} value={item.id}>{item.number} · {item.surface ?? item.area ?? 0} m²</option>)}</select></label>
         <button onClick={() => setNight((value) => !value)}>{night ? 'Día' : 'Atardecer'}</button>
+        <button onClick={backToShowroom}>Edificio</button>
       </div>
     </header>
     <main className="ai-stage">
       <Scene assets={runtimeAssets} room={room} night={night} />
-      <div className="ai-copy"><span>UNIDAD {unit?.number ?? '—'} · PISO {unit?.floor ?? '—'}</span><h1>Entrá. Viví el espacio.</h1><p>{content.heroSubtitle ?? 'Recorré el departamento ambiente por ambiente antes de elegir tu unidad.'}</p></div>
+      <div className="ai-copy"><span>UNIDAD {unit?.number ?? '—'} · PISO {unit?.floor ?? '—'}</span><h1>{content.interiorTitle ?? 'Entrá. Viví el espacio.'}</h1><p>{content.heroSubtitle ?? 'Recorré el departamento ambiente por ambiente antes de elegir tu unidad.'}</p></div>
       <div className="ai-roombar">{ROOMS.map((item) => <button key={item.id} className={room === item.id ? 'active' : ''} onClick={() => setRoom(item.id)}>{item.label}</button>)}</div>
       <div className="ai-spec"><strong>{unit?.surface ?? unit?.area ?? 0} m²</strong><span>{unit?.bedrooms ?? 0} dormitorios · {unit?.bathrooms ?? 0} baños</span><b>{unit?.price ? `$${Number(unit.price).toLocaleString('en-US')}` : 'Consultar'}</b></div>
+      <div className="ai-cta"><button onClick={openClientPortal}>Consultar esta unidad ↗</button></div>
       <div className="ai-hint"><span>ARRASTRÁ PARA EXPLORAR</span><span>SCROLL · ZOOM</span></div>
     </main>
   </div>;
