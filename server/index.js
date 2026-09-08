@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import { getDb } from './db.js';
 import {
   listCompanies,
   createCompany,
@@ -28,8 +27,10 @@ import {
   publishProject,
   ensureCompanyAccess,
 } from './services/projectService.js';
+import { getDb } from './db.js';
 import platformLifecycleRoutes from './services/platformLifecycleRoutes.js';
 import { requireAuth, requireSuperAdmin, requireCompanyAccess } from './services/authMiddleware.js';
+import { createAssetPath, maxServerUploadBytes, putPublicObject, storageConfigured } from './services/objectStorageService.js';
 
 const app = express();
 const db = getDb();
@@ -39,7 +40,7 @@ app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'real-estate-platform', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', service: 'real-estate-platform', timestamp: new Date().toISOString(), storage: storageConfigured() ? 'configured' : 'not-configured' });
 });
 
 app.use('/api', platformLifecycleRoutes);
@@ -132,6 +133,26 @@ app.get('/api/company/:companyId/projects/:projectId', (req, res) => {
   if (!project) return res.status(404).json({ message: 'Project not found' });
   if (project.companyId !== req.params.companyId) return res.status(403).json({ message: 'Access denied' });
   res.json(project);
+});
+
+app.put('/api/company/:companyId/projects/:projectId/assets/:assetId/content', express.raw({ type: '*/*', limit: maxServerUploadBytes() }), async (req, res) => {
+  const { companyId, projectId, assetId } = req.params;
+  const project = getProjectById(projectId);
+  if (!project) return res.status(404).json({ message: 'Project not found' });
+  if (project.companyId !== companyId) return res.status(403).json({ message: 'Project does not belong to company' });
+  const asset = listProjectAssets(projectId).find((item) => item.id === assetId);
+  if (!asset) return res.status(404).json({ message: 'Asset not found' });
+  if (!storageConfigured()) return res.status(503).json({ message: 'Durable object storage is not configured' });
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ message: 'Binary asset body is required' });
+
+  try {
+    const pathname = createAssetPath({ companyId, projectId, assetId, filename: asset.name });
+    const uploaded = await putPublicObject({ pathname, body: req.body, contentType: req.get('content-type') || asset.mimeType || 'application/octet-stream' });
+    db.prepare('UPDATE assets SET path = ?, url = ?, mimeType = ? WHERE id = ? AND projectId = ?').run(pathname, uploaded.url, uploaded.contentType || asset.mimeType || null, assetId, projectId);
+    res.status(201).json({ assetId, path: pathname, url: uploaded.url, downloadUrl: uploaded.downloadUrl, contentType: uploaded.contentType || asset.mimeType || null, etag: uploaded.etag || null });
+  } catch (error) {
+    res.status(502).json({ message: error.message });
+  }
 });
 
 app.get('/api/public/projects', (_req, res) => res.json(listPublicProjects()));
