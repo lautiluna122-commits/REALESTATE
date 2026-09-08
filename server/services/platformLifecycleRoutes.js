@@ -43,7 +43,7 @@ const bearerToken = (req) => {
 const projectCompanyId = (projectId) => getProjectById(projectId)?.companyId ?? null;
 const sameCompany = (projectId, companyId) => Boolean(projectCompanyId(projectId) && projectCompanyId(projectId) === companyId);
 
-function toPublicProject(project) {
+export function toPublicProject(project) {
   return {
     id: project.id,
     name: project.name,
@@ -57,7 +57,7 @@ function toPublicProject(project) {
   };
 }
 
-function toPublicUnit(unit) {
+export function toPublicUnit(unit) {
   return {
     id: unit.id,
     buildingId: unit.buildingId,
@@ -76,7 +76,7 @@ function toPublicUnit(unit) {
   };
 }
 
-function toPublicAsset(asset) {
+export function toPublicAsset(asset) {
   return {
     id: asset.id,
     entityType: asset.entityType,
@@ -89,7 +89,7 @@ function toPublicAsset(asset) {
   };
 }
 
-function toPublicPlan(plan) {
+export function toPublicPlan(plan) {
   return {
     id: plan.id,
     name: plan.name,
