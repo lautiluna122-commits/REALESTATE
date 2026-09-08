@@ -41,6 +41,15 @@ function cacheManifest(slug, manifest) {
   window.localStorage.setItem(`realestate:project:${slug}`, JSON.stringify(normalized));
 }
 
+function projectIdForSlug(slug) {
+  try {
+    const cached = window.localStorage.getItem(`realestate:project:${slug}`);
+    return cached ? JSON.parse(cached)?.project?.id ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function PublicExperienceLoader({ slug, interior = false }) {
   const [ready, setReady] = useState(false);
 
@@ -63,8 +72,10 @@ export default function PublicExperienceLoader({ slug, interior = false }) {
 
   useEffect(() => {
     if (!ready) return;
+    const projectId = projectIdForSlug(slug);
+    if (!projectId) return;
     trackShowroomEvent({
-      projectId: projectIdForSlug(slug),
+      projectId,
       event: interior ? ANALYTICS_EVENT.INTERIOR_OPEN : ANALYTICS_EVENT.SHOWROOM_OPEN,
       metadata: { slug, surface: interior ? 'interior' : 'showroom' },
     });
@@ -76,13 +87,4 @@ export default function PublicExperienceLoader({ slug, interior = false }) {
       {interior ? <ApartmentInterior /> : <CinematicShowroom />}
     </Suspense>
   );
-}
-
-function projectIdForSlug(slug) {
-  try {
-    const cached = window.localStorage.getItem(`realestate:project:${slug}`);
-    return cached ? JSON.parse(cached)?.project?.id ?? null : null;
-  } catch {
-    return null;
-  }
 }
