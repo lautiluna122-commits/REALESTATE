@@ -74,9 +74,7 @@ export default function PublicExperienceLoader({ slug, interior = false }) {
     if (!ready) return;
     const projectId = projectIdForSlug(slug);
     if (!projectId) return;
-    trackShowroomEvent({
-      projectId,
-      event: interior ? ANALYTICS_EVENT.INTERIOR_OPEN : ANALYTICS_EVENT.SHOWROOM_OPEN,
+    trackShowroomEvent(projectId, interior ? ANALYTICS_EVENT.INTERIOR_OPEN : ANALYTICS_EVENT.SHOWROOM_OPEN, {
       metadata: { slug, surface: interior ? 'interior' : 'showroom' },
     });
   }, [ready, slug, interior]);
