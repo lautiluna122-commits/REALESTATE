@@ -49,6 +49,77 @@ function slugify(value) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'nuevo-proyecto';
 }
 
+async function persistStudioStructure(projectId, plans, assets, preliminaryInventory) {
+  const existingBuildings = await platformApi.getProjectBuildings(projectId);
+  let building = existingBuildings[0] ?? null;
+  if (!building) {
+    building = await platformApi.createProjectBuilding(projectId, { name: 'Edificio principal', reference: 'main', metadata: { source: 'project-studio' } });
+  }
+
+  const existingPlans = await platformApi.getProjectPlans(projectId);
+  const persistedPlans = [];
+  for (const plan of plans) {
+    const existing = existingPlans.find((item) => item.name === plan.sourceName);
+    persistedPlans.push(existing ?? await platformApi.createProjectPlan(projectId, {
+      name: plan.sourceName || 'Plano importado',
+      kind: 'architectural',
+      filePath: '',
+      description: `Importado desde Studio: ${plan.sourceName || 'archivo'}`,
+    }));
+  }
+
+  const existingAssets = await platformApi.getProjectAssets(projectId);
+  const persistedAssets = [];
+  for (const asset of assets) {
+    const existing = existingAssets.find((item) => item.name === asset.name && item.kind === asset.kind);
+    persistedAssets.push(existing ?? await platformApi.createProjectAsset(projectId, {
+      entityType: asset.kind === 'buildingModel' ? 'EXPERIENCE' : 'PROJECT',
+      entityId: asset.kind === 'buildingModel' ? building.id : projectId,
+      name: asset.name,
+      kind: asset.kind,
+      path: asset.path || '',
+      url: asset.url || '',
+      mimeType: asset.mimeType || '',
+      metadata: { ...(asset.metadata || {}), source: 'project-studio', originalName: asset.name, size: asset.size ?? null },
+      isPrimary: asset.kind === 'buildingModel',
+    }));
+  }
+
+  const existingFloors = await platformApi.getProjectFloors(projectId, building.id);
+  const floorMap = new Map(existingFloors.map((floor) => [String(floor.number), floor]));
+  const persistedUnits = [];
+  for (const unit of preliminaryInventory) {
+    const floorNumber = Number(unit.floor) || 1;
+    let floor = floorMap.get(String(floorNumber));
+    if (!floor) {
+      floor = await platformApi.createProjectFloor(projectId, { buildingId: building.id, number: floorNumber, name: `Piso ${floorNumber}`, metadata: { source: 'project-studio' } });
+      floorMap.set(String(floorNumber), floor);
+    }
+
+    const plan = persistedPlans.find((item) => item.name === unit.plan) ?? null;
+    const existingUnits = await platformApi.getProjectUnitsAdmin(projectId);
+    const existing = existingUnits.find((item) => item.floorId === floor.id && String(item.number) === String(unit.number));
+    persistedUnits.push(existing ?? await platformApi.createProjectUnit(projectId, {
+      buildingId: building.id,
+      floorId: floor.id,
+      number: unit.number,
+      surface: unit.surface ?? 0,
+      bedrooms: unit.bedrooms ?? 0,
+      bathrooms: unit.bathrooms ?? 0,
+      terrace: unit.terrace ?? 0,
+      price: unit.price ?? 0,
+      currency: unit.currency || 'USD',
+      status: unit.status === 'DRAFT' ? 'AVAILABLE' : unit.status,
+      description: 'Unidad preliminar detectada desde Studio. Requiere validación comercial.',
+      planId: plan?.id ?? null,
+      modelReference: unit.modelRef || '',
+      images: unit.images || [],
+    }));
+  }
+
+  return { building, plans: persistedPlans, assets: persistedAssets, units: persistedUnits, floors: [...floorMap.values()] };
+}
+
 export default function ProjectStudio() {
   const [step, setStep] = useState(0);
   const [projectName, setProjectName] = useState('Nuevo proyecto');
@@ -120,7 +191,15 @@ export default function ProjectStudio() {
 
       if (!serverProject?.id) throw new Error('No se pudo persistir el proyecto en REALESTATE.');
 
-      const version = await platformApi.createProjectVersion(serverProject.id, { project, manifest, assets, plans, inventory: preliminaryInventory }, 'studio');
+      const persisted = await persistStudioStructure(serverProject.id, plans, assets, preliminaryInventory);
+      const serverAssets = persisted.assets.map((asset) => ({ ...asset, status: asset.path || asset.url ? 'READY' : 'PENDING' }));
+      const serverPlans = persisted.plans.map((plan) => ({ ...plan, sourceName: plan.name }));
+      const serverInventory = persisted.units.map((unit) => ({ ...unit, source: 'project-studio' }));
+      const persistedProject = { ...project, id: serverProject.id, companyId: company.id, units: serverInventory };
+      const persistedManifest = createShowroomManifest({ project: persistedProject, importedPlans: serverPlans, assets: serverAssets });
+      localStorage.setItem(`realestate:project:${slug}`, JSON.stringify(persistedManifest));
+
+      const version = await platformApi.createProjectVersion(serverProject.id, { project: persistedProject, manifest: persistedManifest, assets: serverAssets, plans: serverPlans, inventory: serverInventory }, 'studio');
       await platformApi.transitionProject(serverProject.id, 'REVIEW', version.id, 'studio');
       setServerProjectId(serverProject.id);
       setVersionId(version.id);
