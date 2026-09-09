@@ -1,84 +1,18 @@
 import { useEffect, useState } from 'react';
-import { platformApi } from '../platform/platformApi';
+import { API_BASE, getAuthToken, platformApi } from '../platform/platformApi';
 
 const KINDS = ['render', 'model_3d', 'panorama_360', 'video', 'image', 'document'];
 const ENTITY_TYPES = ['PROJECT', 'BUILDING', 'FLOOR', 'UNIT', 'AMENITY', 'EXPERIENCE'];
 
 export default function ContentAssets() {
-  const [projects, setProjects] = useState([]);
-  const [projectId, setProjectId] = useState('');
-  const [assets, setAssets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [projects, setProjects] = useState([]), [projectId, setProjectId] = useState(''), [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const [form, setForm] = useState({ name: '', kind: 'render', entityType: 'PROJECT', entityId: '', url: '', mimeType: '', isPrimary: false });
-
-  async function loadProjects() {
-    const data = await platformApi.getAdminProjects();
-    const next = Array.isArray(data) ? data : [];
-    setProjects(next);
-    if (!projectId && next[0]) setProjectId(next[0].id);
-  }
-
-  async function loadAssets(id = projectId) {
-    if (!id) return;
-    setLoading(true); setError('');
-    try { const data = await platformApi.getProjectAssets(id); setAssets(Array.isArray(data) ? data : []); }
-    catch (err) { setError(err?.message || 'No se pudieron cargar los assets.'); }
-    finally { setLoading(false); }
-  }
-
+  async function loadProjects() { const data = await platformApi.getAdminProjects(); const next = Array.isArray(data) ? data : []; setProjects(next); if (!projectId && next[0]) setProjectId(next[0].id); }
+  async function loadAssets(id = projectId) { if (!id) return; setLoading(true); setError(''); try { const data = await platformApi.getProjectAssets(id); setAssets(Array.isArray(data) ? data : []); } catch (err) { setError(err?.message || 'No se pudieron cargar los assets.'); } finally { setLoading(false); } }
   useEffect(() => { loadProjects().catch((err) => { setError(err?.message || 'No se pudieron cargar los proyectos.'); setLoading(false); }); }, []);
   useEffect(() => { if (projectId) loadAssets(projectId); }, [projectId]);
-
-  async function createAsset() {
-    if (!projectId || !form.name.trim() || !form.kind) return;
-    setSaving(true); setError(''); setMessage('');
-    try {
-      await fetch(`${platformApi.API_BASE || ''}/api/admin/projects/${encodeURIComponent(projectId)}/assets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(platformApi.getAuthToken ? { Authorization: `Bearer ${platformApi.getAuthToken()}` } : {}) },
-        body: JSON.stringify({ ...form, name: form.name.trim(), entityId: form.entityId.trim() || null, url: form.url.trim(), mimeType: form.mimeType.trim() }),
-      }).then(async (response) => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || `Request failed (${response.status})`); return body; });
-      setForm({ name: '', kind: 'render', entityType: 'PROJECT', entityId: '', url: '', mimeType: '', isPrimary: false });
-      setMessage('Asset registrado.'); await loadAssets();
-    } catch (err) { setError(err?.message || 'No se pudo registrar el asset.'); }
-    finally { setSaving(false); }
-  }
-
-  return <main style={{ minHeight: '100vh', background: '#080c12', color: '#f4f5f7', padding: 32, fontFamily: 'Inter, system-ui, sans-serif' }}>
-    <header style={{ maxWidth: 1180, margin: '0 auto 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 20 }}>
-      <div><small style={{ letterSpacing: '.16em', opacity: .5 }}>REALESTATE / CONTENT</small><h1 style={{ fontSize: 38, margin: '8px 0' }}>Assets</h1><p style={{ opacity: .65, margin: 0 }}>Fuente de contenido para renders, 3D, 360°, video y documentos.</p></div>
-      <div style={{ display: 'flex', gap: 10 }}><a href="/admin/structure" style={linkStyle}>Estructura</a><a href="/admin" style={linkStyle}>Dashboard</a></div>
-    </header>
-    <section style={panelStyle}><label style={labelStyle}>Proyecto<select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={inputStyle}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label></section>
-    {error && <div style={{ ...alertStyle, borderColor: '#8f4545' }}>⚠ {error}</div>}{message && <div style={{ ...alertStyle, borderColor: '#426f57' }}>✓ {message}</div>}
-    <section style={gridStyle}>
-      <article style={panelStyle}><small style={eyebrow}>NUEVO CONTENIDO</small><h2 style={h2}>Registrar asset</h2><div style={formGrid}>
-        <label style={labelStyle}>Nombre<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ocean Mansions — exterior" style={inputStyle}/></label>
-        <label style={labelStyle}>Tipo<select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })} style={inputStyle}>{KINDS.map((kind) => <option key={kind}>{kind}</option>)}</select></label>
-        <label style={labelStyle}>Entidad<select value={form.entityType} onChange={(e) => setForm({ ...form, entityType: e.target.value })} style={inputStyle}>{ENTITY_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
-        <label style={labelStyle}>ID entidad<input value={form.entityId} onChange={(e) => setForm({ ...form, entityId: e.target.value })} placeholder="Opcional" style={inputStyle}/></label>
-        <label style={{ ...labelStyle, gridColumn: '1 / -1' }}>URL / ubicación<input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://..." style={inputStyle}/></label>
-        <label style={labelStyle}>MIME type<input value={form.mimeType} onChange={(e) => setForm({ ...form, mimeType: e.target.value })} placeholder="image/jpeg" style={inputStyle}/></label>
-        <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 10, flexDirection: 'row' }}><input type="checkbox" checked={form.isPrimary} onChange={(e) => setForm({ ...form, isPrimary: e.target.checked })}/> Asset principal</label>
-      </div><button disabled={saving || !projectId || !form.name.trim()} onClick={createAsset} style={primaryButton}>{saving ? 'Guardando…' : 'Registrar asset'}</button></article>
-      <article style={panelStyle}><small style={eyebrow}>CATÁLOGO</small><h2 style={h2}>{assets.length} assets registrados</h2>{loading ? <div style={muted}>Cargando…</div> : !assets.length ? <div style={muted}>Todavía no hay contenido asociado al proyecto.</div> : <div>{assets.map((asset) => <div key={asset.id} style={assetRow}><div><strong>{asset.name}</strong><div style={mutedSmall}>{asset.kind} · {asset.entityType || 'PROJECT'}{asset.entityId ? ` · ${asset.entityId}` : ''}</div></div><span style={badge}>{asset.isPrimary ? 'PRIMARY' : 'READY'}</span></div>)}</div>}</article>
-    </section>
-  </main>;
+  async function createAsset() { if (!projectId || !form.name.trim()) return; setSaving(true); setError(''); setMessage(''); try { const token = getAuthToken(); const response = await fetch(`${API_BASE}/api/admin/projects/${encodeURIComponent(projectId)}/assets`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ ...form, name: form.name.trim(), entityId: form.entityId.trim() || null }) }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || `Request failed (${response.status})`); setForm({ name: '', kind: 'render', entityType: 'PROJECT', entityId: '', url: '', mimeType: '', isPrimary: false }); setMessage('Asset registrado.'); await loadAssets(); } catch (err) { setError(err?.message || 'No se pudo registrar el asset.'); } finally { setSaving(false); } }
+  return <main style={{ minHeight: '100vh', background: '#080c12', color: '#f4f5f7', padding: 32, fontFamily: 'Inter, system-ui, sans-serif' }}><header style={{ maxWidth: 1180, margin: '0 auto 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 20 }}><div><small style={{ letterSpacing: '.16em', opacity: .5 }}>REALESTATE / CONTENT</small><h1 style={{ fontSize: 38, margin: '8px 0' }}>Assets</h1><p style={{ opacity: .65, margin: 0 }}>Fuente de contenido para renders, 3D, 360°, video y documentos.</p></div><div style={{ display: 'flex', gap: 10 }}><a href="/admin/structure" style={linkStyle}>Estructura</a><a href="/admin" style={linkStyle}>Dashboard</a></div></header><section style={{ ...panelStyle, maxWidth: 1180, margin: '0 auto 18px' }}><label style={labelStyle}>Proyecto<select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={inputStyle}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label></section>{error && <div style={{ ...alertStyle, borderColor: '#8f4545' }}>⚠ {error}</div>}{message && <div style={{ ...alertStyle, borderColor: '#426f57' }}>✓ {message}</div>}<section style={gridStyle}><article style={panelStyle}><small style={eyebrow}>NUEVO CONTENIDO</small><h2 style={h2}>Registrar asset</h2><div style={formGrid}><label style={labelStyle}>Nombre<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ocean Mansions — exterior" style={inputStyle}/></label><label style={labelStyle}>Tipo<select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })} style={inputStyle}>{KINDS.map((kind) => <option key={kind}>{kind}</option>)}</select></label><label style={labelStyle}>Entidad<select value={form.entityType} onChange={(e) => setForm({ ...form, entityType: e.target.value })} style={inputStyle}>{ENTITY_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label><label style={labelStyle}>ID entidad<input value={form.entityId} onChange={(e) => setForm({ ...form, entityId: e.target.value })} placeholder="Opcional" style={inputStyle}/></label><label style={{ ...labelStyle, gridColumn: '1 / -1' }}>URL / ubicación<input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://..." style={inputStyle}/></label><label style={labelStyle}>MIME type<input value={form.mimeType} onChange={(e) => setForm({ ...form, mimeType: e.target.value })} placeholder="image/jpeg" style={inputStyle}/></label><label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 10, flexDirection: 'row' }}><input type="checkbox" checked={form.isPrimary} onChange={(e) => setForm({ ...form, isPrimary: e.target.checked })}/> Asset principal</label></div><button disabled={saving || !projectId || !form.name.trim()} onClick={createAsset} style={primaryButton}>{saving ? 'Guardando…' : 'Registrar asset'}</button></article><article style={panelStyle}><small style={eyebrow}>CATÁLOGO</small><h2 style={h2}>{assets.length} assets registrados</h2>{loading ? <div style={muted}>Cargando…</div> : !assets.length ? <div style={muted}>Todavía no hay contenido asociado al proyecto.</div> : assets.map((asset) => <div key={asset.id} style={assetRow}><div><strong>{asset.name}</strong><div style={mutedSmall}>{asset.kind} · {asset.entityType || 'PROJECT'}{asset.entityId ? ` · ${asset.entityId}` : ''}</div></div><span style={badge}>{asset.isPrimary ? 'PRIMARY' : 'READY'}</span></div>)}</article></section></main>;
 }
-const linkStyle = { color: '#f4f5f7', textDecoration: 'none', border: '1px solid #2b3440', borderRadius: 10, padding: '10px 14px' };
-const panelStyle = { background: '#0e141d', border: '1px solid #202a36', borderRadius: 16, padding: 22 };
-const alertStyle = { maxWidth: 1180, margin: '0 auto 18px', background: '#0e141d', border: '1px solid', borderRadius: 12, padding: 14 };
-const gridStyle = { maxWidth: 1180, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 };
-const formGrid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, margin: '20px 0' };
-const labelStyle = { display: 'grid', gap: 7, fontSize: 12, opacity: .85 };
-const inputStyle = { background: '#080c12', color: '#f4f5f7', border: '1px solid #303b49', borderRadius: 8, padding: '10px', minWidth: 0 };
-const primaryButton = { background: '#f4f5f7', color: '#080c12', border: 0, borderRadius: 9, padding: '11px 15px', fontWeight: 700, cursor: 'pointer' };
-const eyebrow = { letterSpacing: '.14em', fontSize: 10, opacity: .45 };
-const h2 = { margin: '7px 0 0', fontSize: 20 };
-const muted = { opacity: .55, padding: '22px 0' };
-const mutedSmall = { opacity: .5, marginTop: 5, fontSize: 12 };
-const assetRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '16px 0', borderBottom: '1px solid #202a36' };
-const badge = { border: '1px solid #354153', borderRadius: 999, padding: '5px 9px', fontSize: 10, letterSpacing: '.08em' };
+const linkStyle = { color: '#f4f5f7', textDecoration: 'none', border: '1px solid #2b3440', borderRadius: 10, padding: '10px 14px' }, panelStyle = { background: '#0e141d', border: '1px solid #202a36', borderRadius: 16, padding: 22 }, alertStyle = { maxWidth: 1180, margin: '0 auto 18px', background: '#0e141d', border: '1px solid', borderRadius: 12, padding: 14 }, gridStyle = { maxWidth: 1180, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }, formGrid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, margin: '20px 0' }, labelStyle = { display: 'grid', gap: 7, fontSize: 12, opacity: .85 }, inputStyle = { background: '#080c12', color: '#f4f5f7', border: '1px solid #303b49', borderRadius: 8, padding: '10px', minWidth: 0 }, primaryButton = { background: '#f4f5f7', color: '#080c12', border: 0, borderRadius: 9, padding: '11px 15px', fontWeight: 700, cursor: 'pointer' }, eyebrow = { letterSpacing: '.14em', fontSize: 10, opacity: .45 }, h2 = { margin: '7px 0 0', fontSize: 20 }, muted = { opacity: .55, padding: '22px 0' }, mutedSmall = { opacity: .5, marginTop: 5, fontSize: 12 }, assetRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '16px 0', borderBottom: '1px solid #202a36' }, badge = { border: '1px solid #354153', borderRadius: 999, padding: '5px 9px', fontSize: 10, letterSpacing: '.08em' };
