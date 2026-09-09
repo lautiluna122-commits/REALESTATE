@@ -60,6 +60,16 @@ export const platformApi = {
   getSubscription: (companyId, projectId) => request(`/company/${encodeURIComponent(companyId)}/subscription${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
   createServiceRequest: (companyId, payload) => request(`/company/${encodeURIComponent(companyId)}/service-requests`, { method: 'POST', body: JSON.stringify(payload) }),
   listServiceRequests: (companyId, projectId) => request(`/company/${encodeURIComponent(companyId)}/service-requests${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  getProjectBuildings: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/buildings`),
+  createProjectBuilding: (projectId, payload) => request(`/admin/projects/${encodeURIComponent(projectId)}/buildings`, { method: 'POST', body: JSON.stringify(payload) }),
+  getProjectFloors: (projectId, buildingId) => request(`/admin/projects/${encodeURIComponent(projectId)}/floors${buildingId ? `?buildingId=${encodeURIComponent(buildingId)}` : ''}`),
+  createProjectFloor: (projectId, payload) => request(`/admin/projects/${encodeURIComponent(projectId)}/floors`, { method: 'POST', body: JSON.stringify(payload) }),
+  getProjectUnitsAdmin: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/units`),
+  createProjectUnit: (projectId, payload) => request(`/admin/projects/${encodeURIComponent(projectId)}/units`, { method: 'POST', body: JSON.stringify(payload) }),
+  getProjectPlans: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/plans`),
+  getProjectAssets: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/assets`),
+  getProjectAmenities: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/amenities`),
+  getProjectLocation: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/location`),
 };
 
 export { API_BASE };
