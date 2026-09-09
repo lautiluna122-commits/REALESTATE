@@ -62,6 +62,7 @@ export default function ProjectStudio() {
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(false);
   const [syncState, setSyncState] = useState('local');
+  const [errorMessage, setErrorMessage] = useState('');
   const [serverProjectId, setServerProjectId] = useState(null);
   const [versionId, setVersionId] = useState(null);
 
@@ -101,6 +102,9 @@ export default function ProjectStudio() {
     localStorage.setItem(`realestate:project:${slug}`, JSON.stringify(manifest));
 
     setProcessing(true);
+    setErrorMessage('');
+    setPublished(false);
+    setSyncState('processing');
     try {
       const companySlug = slugify(developer || 'desarrolladora');
       const companies = await platformApi.getCompanies();
@@ -114,15 +118,16 @@ export default function ProjectStudio() {
         serverProject = await platformApi.getProjectBySlug(slug);
       }
 
-      if (serverProject?.id) {
-        const version = await platformApi.createProjectVersion(serverProject.id, { project, manifest, assets, plans, inventory: preliminaryInventory }, 'studio');
-        await platformApi.transitionProject(serverProject.id, 'REVIEW', version.id, 'studio');
-        setServerProjectId(serverProject.id);
-        setVersionId(version.id);
-        setSyncState('live');
-      }
-    } catch {
-      setSyncState('local');
+      if (!serverProject?.id) throw new Error('No se pudo persistir el proyecto en REALESTATE.');
+
+      const version = await platformApi.createProjectVersion(serverProject.id, { project, manifest, assets, plans, inventory: preliminaryInventory }, 'studio');
+      await platformApi.transitionProject(serverProject.id, 'REVIEW', version.id, 'studio');
+      setServerProjectId(serverProject.id);
+      setVersionId(version.id);
+      setSyncState('review');
+    } catch (error) {
+      setSyncState('error');
+      setErrorMessage(error?.message || 'No se pudo guardar el proyecto en REALESTATE. Iniciá sesión y volvé a intentar.');
     } finally {
       setProcessing(false);
       setStep(4);
@@ -130,21 +135,35 @@ export default function ProjectStudio() {
   }
 
   async function publish() {
+    if (!serverProjectId || !versionId) {
+      setSyncState('error');
+      setErrorMessage('El proyecto todavía no está persistido en REALESTATE. No se puede publicar desde un estado local.');
+      return;
+    }
+
     setPublishing(true);
+    setErrorMessage('');
     try {
-      if (serverProjectId) {
-        await platformApi.transitionProject(serverProjectId, 'APPROVED', versionId, 'studio');
-        await platformApi.publishProject(serverProjectId, { publicSlug: slug, publicUrl: `/proyecto/${slug}`, title: projectName, description: `Showroom digital de ${projectName}.` });
-        setSyncState('live');
-      }
+      await platformApi.transitionProject(serverProjectId, 'APPROVED', versionId, 'studio');
+      await platformApi.publishProject(serverProjectId, { publicSlug: slug, publicUrl: `/proyecto/${slug}`, title: projectName, description: `Showroom digital de ${projectName}.` });
+      setSyncState('published');
       setPublished(true);
-    } catch {
-      setSyncState('local');
-      setPublished(true);
+    } catch (error) {
+      setSyncState('error');
+      setPublished(false);
+      setErrorMessage(error?.message || 'La publicación no pudo completarse. El proyecto conserva su estado anterior.');
     } finally {
       setPublishing(false);
     }
   }
+
+  const publicationCopy = syncState === 'published'
+    ? 'El proyecto quedó publicado en REALESTATE y ya puede consumirse desde la ruta pública.'
+    : syncState === 'review'
+      ? 'El proyecto quedó persistido y en revisión. Todavía no está publicado.'
+      : syncState === 'error'
+        ? 'La operación contra REALESTATE falló. El borrador local se conserva como recuperación, pero no es la fuente pública.'
+        : 'El proyecto está preparado para sincronización.';
 
   return (
     <main className="studio-shell">
@@ -179,9 +198,11 @@ export default function ProjectStudio() {
           <div className="actions"><button className="ghost" onClick={() => setStep(2)}>← Revisar</button><button className="primary" disabled={processing} onClick={generate}>{processing ? 'Generando plataforma…' : 'Generar showroom →'}</button></div>
         </>}
         {step === 4 && <>
-          <div className="publish-state"><div className="publish-mark">✓</div><span>05 / Publicación</span><h2>{published ? 'Proyecto publicado.' : 'Showroom generado.'}</h2><p>{published ? 'El proyecto quedó publicado en la plataforma.' : syncState === 'live' ? 'El proyecto quedó generado y guardado en REALESTATE. Está listo para aprobación y publicación.' : 'El proyecto quedó generado en modo local. La sincronización con backend se activa cuando la API está disponible.'}</p></div>
-          <div className="url-card"><span>Ruta pública preparada</span><b>/proyecto/{slug}</b><small>{syncState === 'live' ? 'Publicación conectada al proyecto persistido.' : 'Fallback local: la experiencia puede abrirse aunque el backend no esté disponible.'}</small></div>
-          <div className="actions"><button className="ghost" onClick={() => setStep(3)}>← Volver</button><a className="primary" href={`/proyecto/${slug}`}>Abrir showroom →</a><button className="primary" disabled={publishing || published} onClick={publish}>{publishing ? 'Publicando…' : published ? 'Publicado ✓' : 'Aprobar y publicar →'}</button></div>
+          <div className="publish-state"><div className="publish-mark">{published ? '✓' : syncState === 'error' ? '!' : '•'}</div><span>05 / Publicación</span><h2>{published ? 'Proyecto publicado.' : syncState === 'review' ? 'Proyecto persistido. Pendiente de publicación.' : syncState === 'error' ? 'No se pudo completar la operación.' : 'Showroom generado.'}</h2><p>{publicationCopy}</p></div>
+          {errorMessage && <div className="review-note"><b>La plataforma informó un problema</b><p>{errorMessage}</p></div>}
+          <div className="url-card"><span>{published ? 'Ruta pública' : 'Ruta preparada'}</span><b>/proyecto/{slug}</b><small>{published ? 'Esta ruta corresponde al proyecto publicado.' : 'La ruta no se considera pública hasta que REALESTATE confirme la publicación.'}</small></div>
+          <div className="actions"><button className="ghost" onClick={() => setStep(3)}>← Volver</button><a className="primary" href={`/proyecto/${slug}`}>{published ? 'Abrir showroom →' : 'Abrir preview →'}</a><button className="primary" disabled={publishing || published || syncState === 'error'} onClick={publish}>{publishing ? 'Publicando…' : published ? 'Publicado ✓' : 'Aprobar y publicar →'}</button></div>
+          {syncState === 'error' && <div className="actions"><button className="primary" onClick={generate} disabled={processing}>{processing ? 'Reintentando…' : 'Reintentar sincronización →'}</button></div>}
         </>}
       </section>
       <footer className="studio-footer"><span>REALESTATE</span><span>Project → Data → Import → Map → Renderer → Experience → Publish</span></footer>
