@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { getDb } from '../db.js';
+import { validateProjectIntegrity } from './projectIntegrityService.js';
 
 const db = getDb();
 const json = (value) => JSON.stringify(value ?? {});
@@ -74,10 +75,12 @@ export function transitionProject(projectId, nextStatus, { versionId = null, act
   if (!allowed.includes(nextStatus)) throw new Error(`Invalid lifecycle transition: ${currentStatus} -> ${nextStatus}`);
   const version = versionId ? db.prepare('SELECT id, projectId, version, status, snapshot FROM project_versions WHERE id = ? AND projectId = ?').get(versionId, projectId) : null;
   if (versionId && !version) throw new Error('Version not found for project');
-  if (['REVIEW', 'APPROVED'].includes(nextStatus)) {
+  if (['REVIEW', 'APPROVED', 'PUBLISHED'].includes(nextStatus)) {
     if (!version) throw new Error(`A project version is required before ${nextStatus}`);
     const validation = validateProjectSnapshot(parse(version.snapshot));
     if (!validation.valid) throw new Error(`Version validation failed: ${validation.errors.join('; ')}`);
+    const integrity = validateProjectIntegrity(projectId);
+    if (!integrity.valid) throw new Error(`Project integrity validation failed: ${integrity.errors.join('; ')}`);
   }
   if (nextStatus === 'APPROVED' && version.status !== 'REVIEW') throw new Error(`Version must be in REVIEW before approval (current: ${version.status})`);
   const now = new Date().toISOString();
