@@ -1,5 +1,6 @@
 import './experience/cinematic-polish.css';
 import ProjectStudio from './admin/ProjectStudio';
+import ProjectStructure from './admin/ProjectStructure';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminAuthGate from './admin/AdminAuthGate';
 import ClientPortal from './client/ClientPortal';
@@ -14,6 +15,7 @@ export default function App() {
   const interiorSlug = path.match(/^\/proyecto\/([^/]+)\/interior/)?.[1] ?? null;
 
   if (path === '/' || path === '/admin') return <AdminAuthGate><AdminDashboard /></AdminAuthGate>;
+  if (path === '/admin/structure') return <AdminAuthGate><ProjectStructure /></AdminAuthGate>;
   if (path === '/studio') return <AdminAuthGate><ProjectStudio /></AdminAuthGate>;
   if (path.startsWith('/cliente/')) return <AdminAuthGate><ClientPortal /></AdminAuthGate>;
   if (interiorSlug) return <PublicInterior slug={interiorSlug} />;
