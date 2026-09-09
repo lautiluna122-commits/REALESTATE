@@ -5,13 +5,10 @@ export function getAuthToken() {
   if (typeof window === 'undefined') return null;
   return window.localStorage.getItem(TOKEN_KEY);
 }
-
 export function setAuthToken(token) {
   if (typeof window === 'undefined') return;
-  if (token) window.localStorage.setItem(TOKEN_KEY, token);
-  else window.localStorage.removeItem(TOKEN_KEY);
+  if (token) window.localStorage.setItem(TOKEN_KEY, token); else window.localStorage.removeItem(TOKEN_KEY);
 }
-
 async function request(path, options = {}) {
   const { headers = {}, ...requestOptions } = options;
   const token = getAuthToken();
@@ -22,54 +19,29 @@ async function request(path, options = {}) {
   const text = await response.text();
   let payload = null;
   try { payload = text ? JSON.parse(text) : null; } catch { payload = text; }
-  if (!response.ok) {
-    const error = new Error(payload?.message || `Request failed (${response.status})`);
-    error.status = response.status;
-    error.payload = payload;
-    throw error;
-  }
+  if (!response.ok) { const error = new Error(payload?.message || `Request failed (${response.status})`); error.status = response.status; error.payload = payload; throw error; }
   return payload;
 }
-
 export const platformApi = {
-  login: async (email, password) => {
-    const session = await request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-    setAuthToken(session.token);
-    return session;
-  },
+  login: async (email, password) => { const session = await request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); setAuthToken(session.token); return session; },
   logout: async () => { try { await request('/auth/logout', { method: 'POST' }); } finally { setAuthToken(null); } },
-  me: () => request('/auth/me'),
-  getPlans: () => request('/platform/plans'),
-  getCompanies: () => request('/admin/companies'),
-  createCompany: (payload) => request('/admin/companies', { method: 'POST', body: JSON.stringify(payload) }),
-  getAdminProjects: () => request('/admin/projects'),
-  getProjectBySlug: (slug) => request(`/projects/slug/${encodeURIComponent(slug)}`),
-  createProject: (payload) => request('/admin/projects', { method: 'POST', body: JSON.stringify(payload) }),
+  me: () => request('/auth/me'), getPlans: () => request('/platform/plans'), getCompanies: () => request('/admin/companies'),
+  createCompany: (payload) => request('/admin/companies', { method: 'POST', body: JSON.stringify(payload) }), getAdminProjects: () => request('/admin/projects'),
+  getProjectBySlug: (slug) => request(`/projects/slug/${encodeURIComponent(slug)}`), createProject: (payload) => request('/admin/projects', { method: 'POST', body: JSON.stringify(payload) }),
   publishProject: (projectId, payload = {}) => request(`/admin/projects/${encodeURIComponent(projectId)}/publish`, { method: 'POST', body: JSON.stringify(payload) }),
-  getProjectUnits: (projectId) => request(`/projects/${encodeURIComponent(projectId)}/units`),
-  getCompanyProjectUnits: (companyId, projectId) => request(`/company/${encodeURIComponent(companyId)}/projects/${encodeURIComponent(projectId)}/units`),
+  getProjectUnits: (projectId) => request(`/projects/${encodeURIComponent(projectId)}/units`), getCompanyProjectUnits: (companyId, projectId) => request(`/company/${encodeURIComponent(companyId)}/projects/${encodeURIComponent(projectId)}/units`),
   updateProjectUnit: (projectId, unitId, updates) => request(`/admin/projects/${encodeURIComponent(projectId)}/units/${encodeURIComponent(unitId)}`, { method: 'PATCH', body: JSON.stringify(updates) }),
   updateCompanyProjectUnit: (companyId, projectId, unitId, updates) => request(`/company/${encodeURIComponent(companyId)}/projects/${encodeURIComponent(projectId)}/units/${encodeURIComponent(unitId)}`, { method: 'PATCH', body: JSON.stringify(updates) }),
-  getProjectState: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/platform-state`),
-  getProjectAnalytics: (projectId, since) => request(`/admin/projects/${encodeURIComponent(projectId)}/analytics${since ? `?since=${encodeURIComponent(since)}` : ''}`),
-  getProjectVersions: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/versions`),
-  createProjectVersion: (projectId, snapshot, createdBy) => request(`/admin/projects/${encodeURIComponent(projectId)}/versions`, { method: 'POST', body: JSON.stringify({ snapshot, createdBy }) }),
-  transitionProject: (projectId, status, versionId, actor) => request(`/admin/projects/${encodeURIComponent(projectId)}/lifecycle`, { method: 'POST', body: JSON.stringify({ status, versionId, actor }) }),
-  getPublicManifest: (publicSlug) => request(`/public/projects/${encodeURIComponent(publicSlug)}/manifest`),
-  recordAnalyticsEvent: (event) => request('/analytics/events', { method: 'POST', body: JSON.stringify(event) }),
-  getSubscription: (companyId, projectId) => request(`/company/${encodeURIComponent(companyId)}/subscription${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  getProjectState: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/platform-state`), getProjectAnalytics: (projectId, since) => request(`/admin/projects/${encodeURIComponent(projectId)}/analytics${since ? `?since=${encodeURIComponent(since)}` : ''}`),
+  getProjectVersions: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/versions`), createProjectVersion: (projectId, snapshot, createdBy) => request(`/admin/projects/${encodeURIComponent(projectId)}/versions`, { method: 'POST', body: JSON.stringify({ snapshot, createdBy }) }),
+  transitionProject: (projectId, status, versionId, actor) => request(`/admin/projects/${encodeURIComponent(projectId)}/lifecycle`, { method: 'POST', body: JSON.stringify({ status, versionId, actor }) }), getPublicManifest: (publicSlug) => request(`/public/projects/${encodeURIComponent(publicSlug)}/manifest`),
+  recordAnalyticsEvent: (event) => request('/analytics/events', { method: 'POST', body: JSON.stringify(event)}), getSubscription: (companyId, projectId) => request(`/company/${encodeURIComponent(companyId)}/subscription${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
   createServiceRequest: (companyId, payload) => request(`/company/${encodeURIComponent(companyId)}/service-requests`, { method: 'POST', body: JSON.stringify(payload) }),
   listServiceRequests: (companyId, projectId) => request(`/company/${encodeURIComponent(companyId)}/service-requests${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
-  getProjectBuildings: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/buildings`),
-  createProjectBuilding: (projectId, payload) => request(`/admin/projects/${encodeURIComponent(projectId)}/buildings`, { method: 'POST', body: JSON.stringify(payload) }),
-  getProjectFloors: (projectId, buildingId) => request(`/admin/projects/${encodeURIComponent(projectId)}/floors${buildingId ? `?buildingId=${encodeURIComponent(buildingId)}` : ''}`),
-  createProjectFloor: (projectId, payload) => request(`/admin/projects/${encodeURIComponent(projectId)}/floors`, { method: 'POST', body: JSON.stringify(payload) }),
-  getProjectUnitsAdmin: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/units`),
-  createProjectUnit: (projectId, payload) => request(`/admin/projects/${encodeURIComponent(projectId)}/units`, { method: 'POST', body: JSON.stringify(payload) }),
-  getProjectPlans: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/plans`),
-  getProjectAssets: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/assets`),
-  getProjectAmenities: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/amenities`),
-  getProjectLocation: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/location`),
+  updateServiceRequestStatus: (companyId, requestId, status) => request(`/admin/service-requests/${encodeURIComponent(requestId)}`, { method: 'PATCH', body: JSON.stringify({ companyId, status }) }),
+  getProjectBuildings: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/buildings`), createProjectBuilding: (projectId, payload) => request(`/admin/projects/${encodeURIComponent(projectId)}/buildings`, { method: 'POST', body: JSON.stringify(payload) }),
+  getProjectFloors: (projectId, buildingId) => request(`/admin/projects/${encodeURIComponent(projectId)}/floors${buildingId ? `?buildingId=${encodeURIComponent(buildingId)}` : ''}`), createProjectFloor: (projectId, payload) => request(`/admin/projects/${encodeURIComponent(projectId)}/floors`, { method: 'POST', body: JSON.stringify(payload) }),
+  getProjectUnitsAdmin: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/units`), createProjectUnit: (projectId, payload) => request(`/admin/projects/${encodeURIComponent(projectId)}/units`, { method: 'POST', body: JSON.stringify(payload) }),
+  getProjectPlans: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/plans`), getProjectAssets: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/assets`), getProjectAmenities: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/amenities`), getProjectLocation: (projectId) => request(`/admin/projects/${encodeURIComponent(projectId)}/location`),
 };
-
 export { API_BASE };
