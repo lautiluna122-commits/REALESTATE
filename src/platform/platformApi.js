@@ -15,17 +15,15 @@ export function setAuthToken(token) {
 async function request(path, options = {}) {
   const { headers = {}, ...requestOptions } = options;
   const token = getAuthToken();
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
   const response = await fetch(`${API_BASE}/api${path}`, {
     ...requestOptions,
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...authHeaders, ...headers },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
   });
   const text = await response.text();
   let payload = null;
   try { payload = text ? JSON.parse(text) : null; } catch { payload = text; }
   if (!response.ok) {
-    const message = payload?.message || `Request failed (${response.status})`;
-    const error = new Error(message);
+    const error = new Error(payload?.message || `Request failed (${response.status})`);
     error.status = response.status;
     error.payload = payload;
     throw error;
@@ -39,13 +37,12 @@ export const platformApi = {
     setAuthToken(session.token);
     return session;
   },
-  logout: async () => {
-    try { await request('/auth/logout', { method: 'POST' }); } finally { setAuthToken(null); }
-  },
+  logout: async () => { try { await request('/auth/logout', { method: 'POST' }); } finally { setAuthToken(null); } },
   me: () => request('/auth/me'),
   getPlans: () => request('/platform/plans'),
   getCompanies: () => request('/admin/companies'),
   createCompany: (payload) => request('/admin/companies', { method: 'POST', body: JSON.stringify(payload) }),
+  getAdminProjects: () => request('/admin/projects'),
   getProjectBySlug: (slug) => request(`/projects/slug/${encodeURIComponent(slug)}`),
   createProject: (payload) => request('/admin/projects', { method: 'POST', body: JSON.stringify(payload) }),
   publishProject: (projectId, payload = {}) => request(`/admin/projects/${encodeURIComponent(projectId)}/publish`, { method: 'POST', body: JSON.stringify(payload) }),
@@ -62,6 +59,7 @@ export const platformApi = {
   recordAnalyticsEvent: (event) => request('/analytics/events', { method: 'POST', body: JSON.stringify(event) }),
   getSubscription: (companyId, projectId) => request(`/company/${encodeURIComponent(companyId)}/subscription${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
   createServiceRequest: (companyId, payload) => request(`/company/${encodeURIComponent(companyId)}/service-requests`, { method: 'POST', body: JSON.stringify(payload) }),
+  listServiceRequests: (companyId, projectId) => request(`/company/${encodeURIComponent(companyId)}/service-requests${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
 };
 
 export { API_BASE };
