@@ -99,6 +99,32 @@ export function toPublicPlan(plan) {
   };
 }
 
+export function toPublicBuilding(building) {
+  return {
+    id: building.id,
+    name: building.name,
+    reference: building.reference || null,
+  };
+}
+
+export function toPublicFloor(floor) {
+  return {
+    id: floor.id,
+    buildingId: floor.buildingId,
+    number: floor.number,
+    name: floor.name,
+  };
+}
+
+export function toPublicAmenity(amenity) {
+  return {
+    id: amenity.id,
+    name: amenity.name,
+    description: amenity.description,
+    category: amenity.category,
+  };
+}
+
 router.post('/auth/login', (req, res) => {
   const { email, password } = req.body ?? {};
   const user = authenticateUser(email, password);
@@ -207,7 +233,8 @@ router.get('/public/projects/:publicSlug/manifest', (req, res) => {
     const result = getPublishedProjectByPublicSlug(req.params.publicSlug);
     if (!result) return res.status(404).json({ message: 'Project not found or not published' });
     const { project, publication } = result;
-    const plans = db.prepare('SELECT id, projectId, name, kind, filePath, description, createdAt FROM plans WHERE projectId = ? ORDER BY createdAt ASC').all(project.id);
+    const plans = db.prepare('SELECT id, projectId, name, kind, filePath, description FROM plans WHERE projectId = ? ORDER BY createdAt ASC').all(project.id);
+    const location = getProjectLocation(project.id);
     res.json({
       contractVersion: '1.0',
       project: toPublicProject(project),
@@ -222,13 +249,20 @@ router.get('/public/projects/:publicSlug/manifest', (req, res) => {
         status: publication.status,
         isPublished: true,
       },
-      buildings: listProjectBuildings(project.id).map(({ id, projectId, name, reference, metadata, createdAt }) => ({ id, projectId, name, reference, metadata, createdAt })),
-      floors: listProjectFloors(project.id).map(({ id, projectId, buildingId, number, name, metadata, createdAt }) => ({ id, projectId, buildingId, number, name, metadata, createdAt })),
+      buildings: listProjectBuildings(project.id).map(toPublicBuilding),
+      floors: listProjectFloors(project.id).map(toPublicFloor),
       units: listProjectUnits(project.id).map(toPublicUnit),
       plans: plans.map(toPublicPlan),
-      amenities: listProjectAmenities(project.id).map(({ id, projectId, name, description, category, createdAt }) => ({ id, projectId, name, description, category, createdAt })),
+      amenities: listProjectAmenities(project.id).map(toPublicAmenity),
       assets: listProjectAssets(project.id).map(toPublicAsset),
-      location: getProjectLocation(project.id),
+      location: location ? {
+        id: location.id,
+        name: location.name,
+        city: location.city,
+        country: location.country,
+        district: location.district,
+        coordinates: location.coordinates,
+      } : null,
     });
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
