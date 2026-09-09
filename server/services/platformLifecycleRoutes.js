@@ -3,6 +3,8 @@ import { getDb } from '../db.js';
 import {
   getProjectById,
   getPublishedProjectByPublicSlug,
+  listCompanies,
+  listProjectsByCompany,
   listProjectBuildings,
   listProjectFloors,
   listProjectUnits,
@@ -100,29 +102,15 @@ export function toPublicPlan(plan) {
 }
 
 export function toPublicBuilding(building) {
-  return {
-    id: building.id,
-    name: building.name,
-    reference: building.reference || null,
-  };
+  return { id: building.id, name: building.name, reference: building.reference || null };
 }
 
 export function toPublicFloor(floor) {
-  return {
-    id: floor.id,
-    buildingId: floor.buildingId,
-    number: floor.number,
-    name: floor.name,
-  };
+  return { id: floor.id, buildingId: floor.buildingId, number: floor.number, name: floor.name };
 }
 
 export function toPublicAmenity(amenity) {
-  return {
-    id: amenity.id,
-    name: amenity.name,
-    description: amenity.description,
-    category: amenity.category,
-  };
+  return { id: amenity.id, name: amenity.name, description: amenity.description, category: amenity.category };
 }
 
 router.post('/auth/login', (req, res) => {
@@ -159,6 +147,36 @@ router.use((req, res, next) => {
 
 router.get('/platform/plans', (_req, res) => res.json(PLAN_CATALOG));
 
+router.get('/admin/projects', (_req, res) => {
+  const companies = listCompanies();
+  const projects = companies.flatMap((company) => listProjectsByCompany(company.id).map((project) => {
+    const units = listProjectUnits(project.id);
+    const versions = listProjectVersions(project.id);
+    const analytics = getProjectAnalytics(project.id);
+    const publication = db.prepare('SELECT * FROM project_publications WHERE projectId = ? ORDER BY createdAt DESC LIMIT 1').get(project.id) ?? null;
+    const assets = listProjectAssets(project.id);
+    return {
+      ...project,
+      company: { id: company.id, name: company.name, slug: company.slug },
+      metrics: {
+        units: units.length,
+        available: units.filter((unit) => unit.status === 'AVAILABLE').length,
+        reserved: units.filter((unit) => unit.status !== 'AVAILABLE').length,
+        assets: assets.length,
+        analytics,
+      },
+      latestVersion: versions[0] ?? null,
+      publication: publication ? {
+        publicSlug: publication.publicSlug,
+        publicUrl: publication.publicUrl,
+        isPublished: Boolean(publication.isPublished),
+        status: publication.status,
+      } : null,
+    };
+  }));
+  res.json(projects);
+});
+
 router.post('/analytics/events', (req, res) => {
   const { projectId, event, sessionId, entityType, entityId, metadata, occurredAt } = req.body ?? {};
   if (!projectId || !event) return res.status(400).json({ message: 'projectId and event are required' });
@@ -166,9 +184,8 @@ router.post('/analytics/events', (req, res) => {
   const project = getProjectById(projectId);
   if (!project) return res.status(404).json({ message: 'Project not found' });
   if (project.status !== 'PUBLISHED') return res.status(409).json({ message: 'Analytics are available only for published projects' });
-  try {
-    res.status(201).json(recordAnalyticsEvent({ projectId, event, sessionId, entityType, entityId, metadata, occurredAt }));
-  } catch (error) { res.status(400).json({ message: error.message }); }
+  try { res.status(201).json(recordAnalyticsEvent({ projectId, event, sessionId, entityType, entityId, metadata, occurredAt })); }
+  catch (error) { res.status(400).json({ message: error.message }); }
 });
 
 router.get('/admin/projects/:projectId/analytics', (req, res) => {
@@ -178,10 +195,8 @@ router.get('/admin/projects/:projectId/analytics', (req, res) => {
 
 router.post('/admin/projects/:projectId/versions', (req, res) => {
   if (!getProjectById(req.params.projectId)) return res.status(404).json({ message: 'Project not found' });
-  try {
-    const snapshot = req.body?.snapshot ?? req.body;
-    res.status(201).json(createProjectVersion(req.params.projectId, snapshot, req.auth.id));
-  } catch (error) { res.status(400).json({ message: error.message }); }
+  try { res.status(201).json(createProjectVersion(req.params.projectId, req.body?.snapshot ?? req.body, req.auth.id)); }
+  catch (error) { res.status(400).json({ message: error.message }); }
 });
 
 router.get('/admin/projects/:projectId/versions', (req, res) => {
@@ -208,13 +223,8 @@ router.post('/admin/projects/:projectId/publish', (req, res) => {
   if (!version || version.status !== 'APPROVED') return res.status(409).json({ message: 'An approved project version is required before publication' });
   try {
     transitionProject(project.id, 'PUBLISHED', { versionId: version.id, actor: req.auth.id });
-    try {
-      const result = publishProject(project.id, { ...req.body, actor: req.auth.id });
-      res.json(result);
-    } catch (publicationError) {
-      transitionProject(project.id, 'APPROVED', { versionId: version.id, actor: req.auth.id });
-      throw publicationError;
-    }
+    try { res.json(publishProject(project.id, { ...req.body, actor: req.auth.id })); }
+    catch (publicationError) { transitionProject(project.id, 'APPROVED', { versionId: version.id, actor: req.auth.id }); throw publicationError; }
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
 
@@ -235,35 +245,15 @@ router.get('/public/projects/:publicSlug/manifest', (req, res) => {
     const { project, publication } = result;
     const plans = db.prepare('SELECT id, projectId, name, kind, filePath, description FROM plans WHERE projectId = ? ORDER BY createdAt ASC').all(project.id);
     const location = getProjectLocation(project.id);
-    res.json({
-      contractVersion: '1.0',
-      project: toPublicProject(project),
-      publication: {
-        publicSlug: publication.publicSlug,
-        publicUrl: publication.publicUrl,
-        title: publication.title,
-        description: publication.description,
-        thumbnail: publication.thumbnail,
-        buttonText: publication.buttonText,
-        customDomain: publication.customDomain,
-        status: publication.status,
-        isPublished: true,
-      },
-      buildings: listProjectBuildings(project.id).map(toPublicBuilding),
-      floors: listProjectFloors(project.id).map(toPublicFloor),
-      units: listProjectUnits(project.id).map(toPublicUnit),
-      plans: plans.map(toPublicPlan),
-      amenities: listProjectAmenities(project.id).map(toPublicAmenity),
-      assets: listProjectAssets(project.id).map(toPublicAsset),
-      location: location ? {
-        id: location.id,
-        name: location.name,
-        city: location.city,
-        country: location.country,
-        district: location.district,
-        coordinates: location.coordinates,
-      } : null,
-    });
+    res.json({ contractVersion: '1.0', project: toPublicProject(project), publication: {
+      publicSlug: publication.publicSlug, publicUrl: publication.publicUrl, title: publication.title,
+      description: publication.description, thumbnail: publication.thumbnail, buttonText: publication.buttonText,
+      customDomain: publication.customDomain, status: publication.status, isPublished: true,
+    }, buildings: listProjectBuildings(project.id).map(toPublicBuilding), floors: listProjectFloors(project.id).map(toPublicFloor),
+      units: listProjectUnits(project.id).map(toPublicUnit), plans: plans.map(toPublicPlan), amenities: listProjectAmenities(project.id).map(toPublicAmenity),
+      assets: listProjectAssets(project.id).map(toPublicAsset), location: location ? {
+        id: location.id, name: location.name, city: location.city, country: location.country, district: location.district, coordinates: location.coordinates,
+      } : null });
   } catch (error) { res.status(400).json({ message: error.message }); }
 });
 
@@ -298,9 +288,7 @@ router.post('/admin/subscriptions', (req, res) => {
   catch (error) { res.status(400).json({ message: error.message }); }
 });
 
-router.get('/company/:companyId/subscription', (req, res) => {
-  res.json(getCompanySubscription(req.params.companyId, req.query.projectId || null));
-});
+router.get('/company/:companyId/subscription', (req, res) => res.json(getCompanySubscription(req.params.companyId, req.query.projectId || null)));
 
 router.post('/company/:companyId/service-requests', (req, res) => {
   const { projectId } = req.body ?? {};
@@ -309,8 +297,6 @@ router.post('/company/:companyId/service-requests', (req, res) => {
   catch (error) { res.status(400).json({ message: error.message }); }
 });
 
-router.get('/company/:companyId/service-requests', (req, res) => {
-  res.json(listServiceRequests(req.params.companyId, req.query.projectId || null));
-});
+router.get('/company/:companyId/service-requests', (req, res) => res.json(listServiceRequests(req.params.companyId, req.query.projectId || null)));
 
 export default router;
