@@ -20,6 +20,8 @@ export const PROJECT_LIFECYCLE = Object.freeze({
   ARCHIVED: ['DRAFT'],
 });
 
+export const SERVICE_REQUEST_STATUS = Object.freeze(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'REJECTED']);
+
 export function ensureLifecycleSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS project_versions (id TEXT PRIMARY KEY, projectId TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', snapshot TEXT NOT NULL, createdBy TEXT, approvedAt TEXT, publishedAt TEXT, createdAt TEXT NOT NULL, FOREIGN KEY(projectId) REFERENCES projects(id), UNIQUE(projectId, version));
@@ -35,29 +37,19 @@ export function transitionProject(projectId, nextStatus, { versionId = null, act
   ensureLifecycleSchema();
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
   if (!project) return null;
-
   const currentStatus = project.status || 'DRAFT';
   if (currentStatus === nextStatus) return { ...project, changed: false };
   const allowed = PROJECT_LIFECYCLE[currentStatus] ?? [];
   if (!allowed.includes(nextStatus)) throw new Error(`Invalid lifecycle transition: ${currentStatus} -> ${nextStatus}`);
-
-  const version = versionId
-    ? db.prepare('SELECT id, projectId, version FROM project_versions WHERE id = ? AND projectId = ?').get(versionId, projectId)
-    : null;
+  const version = versionId ? db.prepare('SELECT id, projectId, version FROM project_versions WHERE id = ? AND projectId = ?').get(versionId, projectId) : null;
   if (versionId && !version) throw new Error('Version not found for project');
-
   const now = new Date().toISOString();
   const updateProject = db.transaction(() => {
     db.prepare('UPDATE projects SET status = ? WHERE id = ?').run(nextStatus, projectId);
-    if (versionId && nextStatus === 'APPROVED') {
-      db.prepare('UPDATE project_versions SET status = ?, approvedAt = ? WHERE id = ?').run('APPROVED', now, versionId);
-    }
-    if (versionId && nextStatus === 'PUBLISHED') {
-      db.prepare('UPDATE project_versions SET status = ?, publishedAt = ? WHERE id = ?').run('PUBLISHED', now, versionId);
-    }
+    if (versionId && nextStatus === 'APPROVED') db.prepare('UPDATE project_versions SET status = ?, approvedAt = ? WHERE id = ?').run('APPROVED', now, versionId);
+    if (versionId && nextStatus === 'PUBLISHED') db.prepare('UPDATE project_versions SET status = ?, publishedAt = ? WHERE id = ?').run('PUBLISHED', now, versionId);
   });
   updateProject();
-
   return { ...project, status: nextStatus, changed: true, changedAt: now, changedBy: actor, versionId };
 }
 
@@ -71,9 +63,7 @@ export function recordAnalyticsEvent(input) {
 
 export function getProjectAnalytics(projectId, since = null) {
   ensureLifecycleSchema();
-  const rows = since
-    ? db.prepare('SELECT event, COUNT(*) AS count FROM analytics_events WHERE projectId = ? AND occurredAt >= ? GROUP BY event ORDER BY count DESC').all(projectId, since)
-    : db.prepare('SELECT event, COUNT(*) AS count FROM analytics_events WHERE projectId = ? GROUP BY event ORDER BY count DESC').all(projectId);
+  const rows = since ? db.prepare('SELECT event, COUNT(*) AS count FROM analytics_events WHERE projectId = ? AND occurredAt >= ? GROUP BY event ORDER BY count DESC').all(projectId, since) : db.prepare('SELECT event, COUNT(*) AS count FROM analytics_events WHERE projectId = ? GROUP BY event ORDER BY count DESC').all(projectId);
   return { projectId, events: rows, total: rows.reduce((sum, row) => sum + row.count, 0) };
 }
 
@@ -103,9 +93,7 @@ export function createSubscription(input) {
 
 export function getCompanySubscription(companyId, projectId = null) {
   ensureLifecycleSchema();
-  const row = projectId
-    ? db.prepare('SELECT * FROM subscriptions WHERE companyId = ? AND projectId = ? ORDER BY createdAt DESC LIMIT 1').get(companyId, projectId)
-    : db.prepare('SELECT * FROM subscriptions WHERE companyId = ? ORDER BY createdAt DESC LIMIT 1').get(companyId);
+  const row = projectId ? db.prepare('SELECT * FROM subscriptions WHERE companyId = ? AND projectId = ? ORDER BY createdAt DESC LIMIT 1').get(companyId, projectId) : db.prepare('SELECT * FROM subscriptions WHERE companyId = ? ORDER BY createdAt DESC LIMIT 1').get(companyId);
   return row ?? null;
 }
 
@@ -113,14 +101,25 @@ export function createServiceRequest(input) {
   ensureLifecycleSchema();
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
-  db.prepare('INSERT INTO service_requests (id,companyId,projectId,type,priority,title,description,status,requestedBy,createdAt) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,input.companyId,input.projectId ?? null,input.type,input.priority ?? 'NORMAL',input.title,input.description ?? '',input.status ?? 'OPEN',input.requestedBy ?? null,createdAt);
-  return { id, ...input, status: input.status ?? 'OPEN', createdAt };
+  const status = input.status ?? 'OPEN';
+  if (!SERVICE_REQUEST_STATUS.includes(status)) throw new Error(`Invalid service request status: ${status}`);
+  db.prepare('INSERT INTO service_requests (id,companyId,projectId,type,priority,title,description,status,requestedBy,createdAt) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,input.companyId,input.projectId ?? null,input.type,input.priority ?? 'NORMAL',input.title,input.description ?? '',status,input.requestedBy ?? null,createdAt);
+  return { id, ...input, status, createdAt };
 }
 
 export function listServiceRequests(companyId, projectId = null) {
   ensureLifecycleSchema();
-  const rows = projectId ? db.prepare('SELECT * FROM service_requests WHERE companyId = ? AND projectId = ? ORDER BY createdAt DESC').all(companyId, projectId) : db.prepare('SELECT * FROM service_requests WHERE companyId = ? ORDER BY createdAt DESC').all(companyId);
-  return rows;
+  return projectId ? db.prepare('SELECT * FROM service_requests WHERE companyId = ? AND projectId = ? ORDER BY createdAt DESC').all(companyId, projectId) : db.prepare('SELECT * FROM service_requests WHERE companyId = ? ORDER BY createdAt DESC').all(companyId);
+}
+
+export function updateServiceRequestStatus(companyId, requestId, status, actor = null) {
+  ensureLifecycleSchema();
+  if (!SERVICE_REQUEST_STATUS.includes(status)) throw new Error(`Invalid service request status: ${status}`);
+  const existing = db.prepare('SELECT * FROM service_requests WHERE id = ? AND companyId = ?').get(requestId, companyId);
+  if (!existing) return null;
+  const resolvedAt = status === 'RESOLVED' ? (existing.resolvedAt ?? new Date().toISOString()) : null;
+  db.prepare('UPDATE service_requests SET status = ?, resolvedAt = ? WHERE id = ? AND companyId = ?').run(status, resolvedAt, requestId, companyId);
+  return { ...existing, status, resolvedAt, updatedBy: actor, updatedAt: new Date().toISOString() };
 }
 
 ensureLifecycleSchema();
