@@ -1,10 +1,24 @@
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const TOKEN_KEY = 'realestate:auth-token';
+
+export function getAuthToken() {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token) {
+  if (typeof window === 'undefined') return;
+  if (token) window.localStorage.setItem(TOKEN_KEY, token);
+  else window.localStorage.removeItem(TOKEN_KEY);
+}
 
 async function request(path, options = {}) {
   const { headers = {}, ...requestOptions } = options;
+  const token = getAuthToken();
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
   const response = await fetch(`${API_BASE}/api${path}`, {
     ...requestOptions,
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...headers },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...authHeaders, ...headers },
   });
   const text = await response.text();
   let payload = null;
@@ -20,6 +34,15 @@ async function request(path, options = {}) {
 }
 
 export const platformApi = {
+  login: async (email, password) => {
+    const session = await request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    setAuthToken(session.token);
+    return session;
+  },
+  logout: async () => {
+    try { await request('/auth/logout', { method: 'POST' }); } finally { setAuthToken(null); }
+  },
+  me: () => request('/auth/me'),
   getPlans: () => request('/platform/plans'),
   getCompanies: () => request('/admin/companies'),
   createCompany: (payload) => request('/admin/companies', { method: 'POST', body: JSON.stringify(payload) }),
