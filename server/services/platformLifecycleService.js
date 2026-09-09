@@ -33,6 +33,37 @@ export function ensureLifecycleSchema() {
   `);
 }
 
+export function validateProjectSnapshot(snapshot) {
+  const value = snapshot ?? {};
+  const project = value.project ?? {};
+  const manifest = value.manifest ?? {};
+  const errors = [];
+  if (!project.name?.trim()) errors.push('Project name is required');
+  if (!project.slug?.trim()) errors.push('Project slug is required');
+  if (!project.location) errors.push('Project location is required');
+  if (!manifest.project) errors.push('Showroom manifest project is required');
+  if (!Array.isArray(value.assets)) errors.push('Assets must be an array');
+  if (!Array.isArray(value.plans)) errors.push('Plans must be an array');
+  if (!Array.isArray(value.inventory)) errors.push('Inventory must be an array');
+  if (Array.isArray(value.assets)) {
+    value.assets.forEach((asset, index) => {
+      if (!asset?.name) errors.push(`Asset ${index + 1} is missing a name`);
+      if (!asset?.kind) errors.push(`Asset ${index + 1} is missing a kind`);
+      if (asset?.status === 'READY' && !asset?.path && !asset?.url) errors.push(`Asset ${index + 1} is marked READY without a path or URL`);
+    });
+  }
+  if (Array.isArray(value.inventory)) {
+    const seen = new Set();
+    value.inventory.forEach((unit, index) => {
+      if (!unit?.number) errors.push(`Inventory unit ${index + 1} is missing a number`);
+      const key = `${unit?.floor ?? 'x'}:${unit?.number ?? index}`;
+      if (seen.has(key)) errors.push(`Duplicate inventory unit ${key}`);
+      seen.add(key);
+    });
+  }
+  return { valid: errors.length === 0, errors };
+}
+
 export function transitionProject(projectId, nextStatus, { versionId = null, actor = null } = {}) {
   ensureLifecycleSchema();
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
@@ -41,11 +72,18 @@ export function transitionProject(projectId, nextStatus, { versionId = null, act
   if (currentStatus === nextStatus) return { ...project, changed: false };
   const allowed = PROJECT_LIFECYCLE[currentStatus] ?? [];
   if (!allowed.includes(nextStatus)) throw new Error(`Invalid lifecycle transition: ${currentStatus} -> ${nextStatus}`);
-  const version = versionId ? db.prepare('SELECT id, projectId, version FROM project_versions WHERE id = ? AND projectId = ?').get(versionId, projectId) : null;
+  const version = versionId ? db.prepare('SELECT id, projectId, version, status, snapshot FROM project_versions WHERE id = ? AND projectId = ?').get(versionId, projectId) : null;
   if (versionId && !version) throw new Error('Version not found for project');
+  if (['REVIEW', 'APPROVED'].includes(nextStatus)) {
+    if (!version) throw new Error(`A project version is required before ${nextStatus}`);
+    const validation = validateProjectSnapshot(parse(version.snapshot));
+    if (!validation.valid) throw new Error(`Version validation failed: ${validation.errors.join('; ')}`);
+  }
+  if (nextStatus === 'APPROVED' && version.status !== 'REVIEW') throw new Error(`Version must be in REVIEW before approval (current: ${version.status})`);
   const now = new Date().toISOString();
   const updateProject = db.transaction(() => {
     db.prepare('UPDATE projects SET status = ? WHERE id = ?').run(nextStatus, projectId);
+    if (versionId && nextStatus === 'REVIEW') db.prepare('UPDATE project_versions SET status = ? WHERE id = ?').run('REVIEW', versionId);
     if (versionId && nextStatus === 'APPROVED') db.prepare('UPDATE project_versions SET status = ?, approvedAt = ? WHERE id = ?').run('APPROVED', now, versionId);
     if (versionId && nextStatus === 'PUBLISHED') db.prepare('UPDATE project_versions SET status = ?, publishedAt = ? WHERE id = ?').run('PUBLISHED', now, versionId);
   });
@@ -69,12 +107,13 @@ export function getProjectAnalytics(projectId, since = null) {
 
 export function createProjectVersion(projectId, snapshot, createdBy = null) {
   ensureLifecycleSchema();
+  const validation = validateProjectSnapshot(snapshot);
   const latest = db.prepare('SELECT MAX(version) AS version FROM project_versions WHERE projectId = ?').get(projectId)?.version ?? 0;
   const version = latest + 1;
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   db.prepare('INSERT INTO project_versions (id,projectId,version,status,snapshot,createdBy,createdAt) VALUES (?,?,?,?,?,?,?)').run(id,projectId,version,'DRAFT',json(snapshot),createdBy,createdAt);
-  return { id, projectId, version, status: 'DRAFT', snapshot, createdBy, createdAt };
+  return { id, projectId, version, status: 'DRAFT', snapshot, validation, createdBy, createdAt };
 }
 
 export function listProjectVersions(projectId) {
