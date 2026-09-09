@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { getDb } from '../db.js';
 import { listProjectAssets } from './projectService.js';
+import { validateProjectIntegrity } from './projectIntegrityService.js';
 
 const UE5_KINDS = new Set([
   'buildingModel',
@@ -89,16 +90,18 @@ export function getUnrealProjectManifest(projectId) {
 export function getUnrealProjectStatus(projectId) {
   const manifest = getUnrealProjectManifest(projectId);
   if (!manifest) return null;
+  const integrity = validateProjectIntegrity(projectId);
   const readyAssets = manifest.assets.filter((asset) => asset.status === 'READY').length;
   const ueAssets = manifest.assets.length;
   return {
     projectId,
     engine: manifest.engine,
-    status: ueAssets === 0 ? 'AWAITING_ASSETS' : readyAssets === ueAssets ? 'READY' : 'PARTIAL',
+    status: !integrity?.valid ? 'BLOCKED_INTEGRITY' : ueAssets === 0 ? 'AWAITING_ASSETS' : readyAssets === ueAssets ? 'READY' : 'PARTIAL',
     totalAssets: ueAssets,
     readyAssets,
     pendingAssets: ueAssets - readyAssets,
     manifestVersion: manifest.schemaVersion,
     generatedAt: manifest.generatedAt,
+    integrity: integrity ? { valid: integrity.valid, errors: integrity.errors, warnings: integrity.warnings, counts: integrity.counts, checks: integrity.checks } : null,
   };
 }
