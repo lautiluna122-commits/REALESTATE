@@ -15,7 +15,7 @@ export default function App() {
 
   if (path === '/' || path === '/admin') return <AdminAuthGate><AdminDashboard /></AdminAuthGate>;
   if (path === '/studio') return <AdminAuthGate><ProjectStudio /></AdminAuthGate>;
-  if (path.startsWith('/cliente/')) return <ClientPortal />;
+  if (path.startsWith('/cliente/')) return <AdminAuthGate><ClientPortal /></AdminAuthGate>;
   if (interiorSlug) return <PublicInterior slug={interiorSlug} />;
   if (showroomSlug) return <PublicShowroom slug={showroomSlug} />;
   return <PublicExperienceLoader slug="ocean-mansions" />;
