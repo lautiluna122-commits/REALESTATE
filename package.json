@@ -13,7 +13,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
-    "@vercel/blob": "latest",
+    "@vercel/blob": "2.8.0",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
     "express": "^5.2.1",
