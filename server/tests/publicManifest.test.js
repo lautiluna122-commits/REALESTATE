@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 process.env.NODE_ENV = 'test';
 
-const { toPublicProject, toPublicUnit, toPublicAsset, toPublicPlan } = await import('../services/platformLifecycleRoutes.js');
+const { toPublicProject, toPublicUnit, toPublicAsset, toPublicPlan, toPublicBuilding, toPublicFloor, toPublicAmenity } = await import('../services/platformLifecycleRoutes.js');
 
 test('public project omits tenant and internal persistence fields', () => {
   const result = toPublicProject({
@@ -38,4 +38,13 @@ test('public asset and plan serializers omit internal metadata and timestamps', 
   assert.equal(plan.projectId, undefined);
   assert.equal(plan.createdAt, undefined);
   assert.equal(plan.filePath, '/public/plans/804.pdf');
+});
+
+test('public building, floor and amenity serializers expose only showroom-safe fields', () => {
+  const building = toPublicBuilding({ id: 'b1', projectId: 'secret', name: 'Torre', reference: 'tower-a', metadata: { private: true }, createdAt: 'secret' });
+  const floor = toPublicFloor({ id: 'f5', projectId: 'secret', buildingId: 'b1', number: 5, name: 'Piso 5', metadata: { private: true }, createdAt: 'secret' });
+  const amenity = toPublicAmenity({ id: 'am1', projectId: 'secret', name: 'Pool Deck', description: 'Public amenity', category: 'wellness', metadata: { private: true }, createdAt: 'secret' });
+  assert.deepEqual(building, { id: 'b1', name: 'Torre', reference: 'tower-a' });
+  assert.deepEqual(floor, { id: 'f5', buildingId: 'b1', number: 5, name: 'Piso 5' });
+  assert.deepEqual(amenity, { id: 'am1', name: 'Pool Deck', description: 'Public amenity', category: 'wellness' });
 });
