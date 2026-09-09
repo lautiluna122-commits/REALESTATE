@@ -9,6 +9,7 @@ import {
 } from '../server/services/projectService.js';
 import { getDb } from '../server/db.js';
 import platformLifecycleRoutes from '../server/services/platformLifecycleRoutes.js';
+import { getUnrealProjectManifest, getUnrealProjectStatus } from '../server/services/enginePipelineService.js';
 import { requireAuth, requireSuperAdmin, requireCompanyAccess } from '../server/services/authMiddleware.js';
 import { createAssetPath, maxServerUploadBytes, putPublicObject, storageConfigured } from '../server/services/objectStorageService.js';
 
@@ -65,6 +66,8 @@ app.post('/api/admin/projects/:projectId/assets/:assetId/upload', async (req, re
     return res.status(200).json(result);
   } catch (error) { return res.status(400).json({ message: error.message }); }
 });
+app.get('/api/admin/projects/:projectId/engine/unreal/status', (req, res) => { const result = getUnrealProjectStatus(req.params.projectId); if (!result) return res.status(404).json({ message: 'Project not found' }); res.json(result); });
+app.get('/api/admin/projects/:projectId/engine/unreal/manifest', (req, res) => { const result = getUnrealProjectManifest(req.params.projectId); if (!result) return res.status(404).json({ message: 'Project not found' }); res.json(result); });
 app.post('/api/admin/projects/:projectId/location', (req, res) => { try { res.status(201).json(createLocation({ projectId: req.params.projectId, ...(req.body ?? {}) })); } catch (error) { res.status(400).json({ message: error.message }); } });
 app.get('/api/admin/projects/:projectId/location', (req, res) => res.json(getProjectLocation(req.params.projectId)));
 app.post('/api/admin/projects/:projectId/publication', (req, res) => { try { res.status(201).json(createProjectPublication({ projectId: req.params.projectId, ...(req.body ?? {}) })); } catch (error) { res.status(400).json({ message: error.message }); } });
