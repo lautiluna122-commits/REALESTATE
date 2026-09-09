@@ -3,6 +3,7 @@ import ProjectStudio from './admin/ProjectStudio';
 import ProjectStructure from './admin/ProjectStructure';
 import InventoryEditor from './admin/InventoryEditor';
 import ClientRequests from './admin/ClientRequests';
+import ContentAssets from './admin/ContentAssets';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminAuthGate from './admin/AdminAuthGate';
 import ClientPortal from './client/ClientPortal';
@@ -20,6 +21,7 @@ export default function App() {
   if (path === '/admin/structure') return <AdminAuthGate><ProjectStructure /></AdminAuthGate>;
   if (path === '/admin/inventory') return <AdminAuthGate><InventoryEditor /></AdminAuthGate>;
   if (path === '/admin/requests') return <AdminAuthGate><ClientRequests /></AdminAuthGate>;
+  if (path === '/admin/content/assets') return <AdminAuthGate><ContentAssets /></AdminAuthGate>;
   if (path === '/studio') return <AdminAuthGate><ProjectStudio /></AdminAuthGate>;
   if (path.startsWith('/cliente/')) return <AdminAuthGate><ClientPortal /></AdminAuthGate>;
   if (interiorSlug) return <PublicInterior slug={interiorSlug} />;
