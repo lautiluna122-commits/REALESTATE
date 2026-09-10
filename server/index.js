@@ -154,4 +154,8 @@ app.post('/api/projects/:projectId/leads', (req, res) => {
 });
 app.post('/api/auth/tenant-access', requireApiKey, (req, res) => { const { requestedCompanyId, targetCompanyId } = req.body || {}; if (String(requestedCompanyId) !== String(req.company.id)) return res.status(403).json({ allowed: false }); res.json({ allowed: ensureCompanyAccess(requestedCompanyId, targetCompanyId) }); });
 
-app.listen(port, () => console.log(`Real Estate Platform API listening on http://localhost:${port}`));
+export { app };
+
+if (process.env.VERCEL !== '1') {
+  app.listen(port, () => console.log(`Real Estate Platform API listening on http://localhost:${port}`));
+}
