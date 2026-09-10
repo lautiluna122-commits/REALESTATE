@@ -16,45 +16,26 @@ function waitForServer(child) {
     const check = async () => {
       try {
         const response = await fetch(`${baseUrl}/api/health`);
-        if (response.ok) {
-          clearTimeout(timeout);
-          resolve();
-          return;
-        }
-      } catch {
-        // The server is still starting.
-      }
+        if (response.ok) { clearTimeout(timeout); resolve(); return; }
+      } catch {}
       setTimeout(check, 100);
     };
-
-    child.once('error', (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
+    child.once('error', (error) => { clearTimeout(timeout); reject(error); });
     check();
   });
 }
 
 async function createCompany(name) {
   const response = await fetch(`${baseUrl}/api/admin/companies`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-platform-key': platformKey },
-    body: JSON.stringify({
-      name,
-      slug: `${name.toLowerCase().replaceAll(' ', '-')}-${crypto.randomUUID().slice(0, 8)}`,
-    }),
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-platform-key': platformKey },
+    body: JSON.stringify({ name, slug: `${name.toLowerCase().replaceAll(' ', '-')}-${crypto.randomUUID().slice(0, 8)}` }),
   });
   assert.equal(response.status, 201);
   return response.json();
 }
 
 test('aislamiento por tenant y acceso global solo para platform owner', async () => {
-  const child = spawn(process.execPath, ['server/index.js'], {
-    cwd: process.cwd(),
-    env: { ...process.env, NODE_ENV: 'test', PORT: String(port), PLATFORM_API_KEY: platformKey },
-    stdio: 'ignore',
-  });
-
+  const child = spawn(process.execPath, ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, NODE_ENV: 'test', PORT: String(port), PLATFORM_API_KEY: platformKey }, stdio: 'ignore' });
   try {
     await waitForServer(child);
     const companyA = await createCompany('Company A');
@@ -62,75 +43,46 @@ test('aislamiento por tenant y acceso global solo para platform owner', async ()
 
     const noPlatformKey = await fetch(`${baseUrl}/api/admin/companies`);
     assert.equal(noPlatformKey.status, 401);
-
-    const wrongPlatformKey = await fetch(`${baseUrl}/api/admin/companies`, {
-      headers: { 'x-platform-key': 'not-a-real-key' },
-    });
+    const wrongPlatformKey = await fetch(`${baseUrl}/api/admin/companies`, { headers: { 'x-platform-key': 'not-a-real-key' } });
     assert.equal(wrongPlatformKey.status, 401);
-
-    const platformCompanies = await fetch(`${baseUrl}/api/admin/companies`, {
-      headers: { 'x-platform-key': platformKey },
-    });
+    const platformCompanies = await fetch(`${baseUrl}/api/admin/companies`, { headers: { 'x-platform-key': platformKey } });
     assert.equal(platformCompanies.status, 200);
     const companies = await platformCompanies.json();
-    assert.equal(companies.length, 2);
+    assert.ok(companies.length >= 2);
+    assert.ok(companies.some((c) => c.id === companyA.id));
+    assert.ok(companies.some((c) => c.id === companyB.id));
 
     const noKey = await fetch(`${baseUrl}/api/admin/companies/${companyA.id}/projects`);
     assert.equal(noKey.status, 401);
-
-    const badKey = await fetch(`${baseUrl}/api/admin/companies/${companyA.id}/projects`, {
-      headers: { 'x-api-key': 'not-a-real-key' },
-    });
+    const badKey = await fetch(`${baseUrl}/api/admin/companies/${companyA.id}/projects`, { headers: { 'x-api-key': 'not-a-real-key' } });
     assert.equal(badKey.status, 401);
-
-    const wrongCompany = await fetch(`${baseUrl}/api/admin/companies/${companyA.id}/projects`, {
-      headers: { 'x-api-key': companyB.apiKey },
-    });
+    const wrongCompany = await fetch(`${baseUrl}/api/admin/companies/${companyA.id}/projects`, { headers: { 'x-api-key': companyB.apiKey } });
     assert.equal(wrongCompany.status, 403);
-
-    const ownCompany = await fetch(`${baseUrl}/api/admin/companies/${companyA.id}/projects`, {
-      headers: { 'x-api-key': companyA.apiKey },
-    });
+    const ownCompany = await fetch(`${baseUrl}/api/admin/companies/${companyA.id}/projects`, { headers: { 'x-api-key': companyA.apiKey } });
     assert.equal(ownCompany.status, 200);
 
     const createProject = await fetch(`${baseUrl}/api/admin/projects`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': companyA.apiKey },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': companyA.apiKey },
       body: JSON.stringify({ companyId: companyA.id, name: 'Project A', slug: `project-a-${crypto.randomUUID().slice(0, 8)}` }),
     });
     assert.equal(createProject.status, 201);
     const projectA = await createProject.json();
 
-    const crossTenantProjectRead = await fetch(`${baseUrl}/api/admin/projects/${projectA.id}`, {
-      headers: { 'x-api-key': companyB.apiKey },
-    });
+    const crossTenantProjectRead = await fetch(`${baseUrl}/api/admin/projects/${projectA.id}`, { headers: { 'x-api-key': companyB.apiKey } });
     assert.equal(crossTenantProjectRead.status, 403);
-
     const crossTenantProjectMutation = await fetch(`${baseUrl}/api/admin/projects/${projectA.id}/buildings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': companyB.apiKey },
-      body: JSON.stringify({ name: 'Should not exist' }),
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': companyB.apiKey }, body: JSON.stringify({ name: 'Should not exist' }),
     });
     assert.equal(crossTenantProjectMutation.status, 403);
 
-    const platformProjectRead = await fetch(`${baseUrl}/api/platform/projects/${projectA.id}`, {
-      headers: { 'x-platform-key': platformKey },
-    });
+    const platformProjectRead = await fetch(`${baseUrl}/api/platform/projects/${projectA.id}`, { headers: { 'x-platform-key': platformKey } });
     assert.equal(platformProjectRead.status, 200);
-
-    const tenantPlatformRoute = await fetch(`${baseUrl}/api/platform/projects/${projectA.id}`, {
-      headers: { 'x-api-key': companyB.apiKey },
-    });
+    const tenantPlatformRoute = await fetch(`${baseUrl}/api/platform/projects/${projectA.id}`, { headers: { 'x-api-key': companyB.apiKey } });
     assert.equal(tenantPlatformRoute.status, 401);
-
     const companyRouteNoKey = await fetch(`${baseUrl}/api/company/${companyA.id}/projects`);
     assert.equal(companyRouteNoKey.status, 401);
-
-    const companyRouteWrongCompany = await fetch(`${baseUrl}/api/company/${companyA.id}/projects`, {
-      headers: { 'x-api-key': companyB.apiKey },
-    });
+    const companyRouteWrongCompany = await fetch(`${baseUrl}/api/company/${companyA.id}/projects`, { headers: { 'x-api-key': companyB.apiKey } });
     assert.equal(companyRouteWrongCompany.status, 403);
-
     const publicRoute = await fetch(`${baseUrl}/api/public/projects`);
     assert.equal(publicRoute.status, 200);
   } finally {
