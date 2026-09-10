@@ -7,7 +7,11 @@ export const projectRegistry = Object.fromEntries(
 );
 
 export function getProjectById(projectId = 'ocean-mansions') {
-  return projectRegistry[projectId] ?? projectCatalog[0];
+  return projectRegistry[projectId] ?? null;
+}
+
+export function getProjectByPublicSlug(publicSlug = 'ocean-mansions') {
+  return projectCatalog.find((project) => project.publication?.publicSlug === publicSlug && project.publication?.isPublished && project.status === 'PUBLISHED') ?? null;
 }
 
 export function getProjectUnits(projectId = 'ocean-mansions') {
@@ -22,14 +26,7 @@ export function getProjectAmenities(projectId = 'ocean-mansions') {
 
 export function getProjectLocation(projectId = 'ocean-mansions') {
   const project = getProjectById(projectId);
-  return project?.location ?? {
-    id: 'location-punta-del-este',
-    name: 'Punta del Este',
-    district: 'Playa Mansa',
-    city: 'Punta del Este',
-    country: 'Uruguay',
-    coordinates: { lat: -34.9, lng: -54.9 },
-  };
+  return project?.location ?? null;
 }
 
 export function resolveProjectAsset(projectId = 'ocean-mansions', kind = 'glb') {
@@ -45,10 +42,10 @@ export function resolveProjectAsset(projectId = 'ocean-mansions', kind = 'glb') 
   }
 
   return {
-    id: 'asset-ocean-building-model',
-    name: 'Ocean Mansions Building Model',
+    id: `asset-${projectId}-building-model`,
+    name: `${project?.name ?? projectId} Building Model`,
     kind,
-    path: '/assets/models/ocean-mansions.glb',
+    path: `/assets/models/${projectId}.glb`,
     projectId,
     isPrimary: true,
     source: 'procedural-fallback',
