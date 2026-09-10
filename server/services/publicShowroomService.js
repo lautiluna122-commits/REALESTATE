@@ -10,7 +10,6 @@ function parseJson(value) {
 function normalizeProject(row) {
   return {
     id: row.id,
-    companyId: row.companyId,
     name: row.name,
     slug: row.slug,
     description: row.description,
@@ -18,8 +17,6 @@ function normalizeProject(row) {
     location: parseJson(row.location),
     branding: parseJson(row.branding),
     buildingReference: row.buildingReference,
-    environmentConfig: parseJson(row.environmentConfig),
-    publicationConfig: parseJson(row.publicationConfig),
     createdAt: row.createdAt,
   };
 }
