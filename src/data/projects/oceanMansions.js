@@ -10,7 +10,8 @@ import {
   UNIT_STATUS,
 } from '../../domain/platformModels.js';
 
-const publicAsset = (path) => `${import.meta.env.BASE_URL}${path}`;
+const baseUrl = typeof import.meta.env !== 'undefined' ? import.meta.env.BASE_URL : '/';
+const publicAsset = (path) => `${baseUrl}${path}`;
 
 const statusMap = {
   Disponible: UNIT_STATUS.AVAILABLE,
@@ -38,42 +39,12 @@ export const oceanLocation = createLocation({
 });
 
 export const oceanAmenities = [
-  createAmenity({
-    id: 'amenity-pool',
-    name: 'Pool Deck',
-    description: 'Piscina exterior, deck infinito y solárium orientados al mar.',
-    category: 'recreation',
-  }),
-  createAmenity({
-    id: 'amenity-wellness',
-    name: 'Wellness Club',
-    description: 'Gimnasio, spa y espacios de tratamiento pensados para el bienestar diario.',
-    category: 'wellness',
-  }),
-  createAmenity({
-    id: 'amenity-sky-lounge',
-    name: 'Sky Lounge',
-    description: 'Terraza social privada para encuentros, eventos y atardeceres.',
-    category: 'social',
-  }),
-  createAmenity({
-    id: 'amenity-beach-club',
-    name: 'Beach Club',
-    description: 'Experiencia costera integrada al proyecto, con espacios de descanso y encuentro.',
-    category: 'recreation',
-  }),
-  createAmenity({
-    id: 'amenity-lobby',
-    name: 'Residents Lobby',
-    description: 'Lobby de ingreso con recepción, lounges privados y acceso controlado.',
-    category: 'entry',
-  }),
-  createAmenity({
-    id: 'amenity-concierge',
-    name: 'Private Concierge',
-    description: 'Atención personalizada para residentes y servicios asociados al edificio.',
-    category: 'service',
-  }),
+  createAmenity({ id: 'amenity-pool', name: 'Pool Deck', description: 'Piscina exterior, deck infinito y solárium orientados al mar.', category: 'recreation' }),
+  createAmenity({ id: 'amenity-wellness', name: 'Wellness Club', description: 'Gimnasio, spa y espacios de tratamiento pensados para el bienestar diario.', category: 'wellness' }),
+  createAmenity({ id: 'amenity-sky-lounge', name: 'Sky Lounge', description: 'Terraza social privada para encuentros, eventos y atardeceres.', category: 'social' }),
+  createAmenity({ id: 'amenity-beach-club', name: 'Beach Club', description: 'Experiencia costera integrada al proyecto, con espacios de descanso y encuentro.', category: 'recreation' }),
+  createAmenity({ id: 'amenity-lobby', name: 'Residents Lobby', description: 'Lobby de ingreso con recepción, lounges privados y acceso controlado.', category: 'entry' }),
+  createAmenity({ id: 'amenity-concierge', name: 'Private Concierge', description: 'Atención personalizada para residentes y servicios asociados al edificio.', category: 'service' }),
 ];
 
 export const oceanUnits = apartmentData.map((item) =>
@@ -103,17 +74,8 @@ export const oceanProjectConfig = createProjectConfig({
   amenities: ['pool', 'wellness', 'social', 'recreation', 'entry', 'service'],
   environment: ['ocean', 'beach', 'terrain', 'city'],
   location: ['coast', 'beach', 'city'],
-  branding: {
-    primaryColor: '#173b63',
-    secondaryColor: '#d4af69',
-    logo: 'ocean-mansions',
-  },
-  experience: {
-    walking: true,
-    floorSelection: true,
-    apartmentTour: true,
-    dayNight: true,
-  },
+  branding: { primaryColor: '#173b63', secondaryColor: '#d4af69', logo: 'ocean-mansions' },
+  experience: { walking: true, floorSelection: true, apartmentTour: true, dayNight: true },
 });
 
 export const oceanProjectPublication = createProjectPublication({
@@ -133,6 +95,7 @@ export const oceanMansionsProject = createProject({
   companyId: oceanCompany.id,
   name: 'Ocean Mansions',
   slug: 'ocean-mansions',
+  description: 'Una nueva forma de recorrer, entender y elegir una propiedad frente al mar.',
   location: oceanLocation,
   units: oceanUnits,
   amenities: oceanAmenities,
