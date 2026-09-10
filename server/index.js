@@ -9,6 +9,7 @@ import {
   createLocation, getProjectLocation, createProjectPublication, publishProject, createLead,
   ensureCompanyAccess, getCompanyByApiKey,
 } from './services/projectService.js';
+import { getPublishedShowroomBySlug } from './services/publicShowroomService.js';
 import { requireOwnProject } from './middleware/tenantAccess.js';
 
 const app = express();
@@ -135,9 +136,9 @@ app.get('/api/platform/projects/:projectId/units', requirePlatformKey, (req, res
 app.get('/api/platform/projects/:projectId/leads', requirePlatformKey, (req, res) => res.json(db.prepare('SELECT * FROM leads WHERE projectId = ? ORDER BY createdAt DESC').all(req.params.projectId)));
 
 app.get('/api/public/projects', (_req, res) => res.json(listPublicProjects()));
-app.get('/api/public/projects/:publicSlug', (req, res) => { const r = getPublishedProjectByPublicSlug(req.params.publicSlug); return r ? res.json(r) : res.status(404).json({ message: 'Project not found or not published' }); });
+app.get('/api/public/projects/:publicSlug', (req, res) => { const r = getPublishedShowroomBySlug(req.params.publicSlug); return r ? res.json(r) : res.status(404).json({ message: 'Project not found or not published' }); });
 app.get('/api/projects/public/list', (_req, res) => res.json(listPublicProjects()));
-app.get('/api/projects/public/:slug', (req, res) => { const r = getPublishedProjectByPublicSlug(req.params.slug); return r ? res.json(r) : res.status(404).json({ message: 'Project not found or not published' }); });
+app.get('/api/projects/public/:slug', (req, res) => { const r = getPublishedShowroomBySlug(req.params.slug); return r ? res.json(r) : res.status(404).json({ message: 'Project not found or not published' }); });
 
 app.post('/api/projects/:projectId/leads', (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
