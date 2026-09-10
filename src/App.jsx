@@ -1,5 +1,6 @@
 import React from 'react';
 import ShowroomStable from './experience/ShowroomStable';
+import LeadCapture from './experience/LeadCapture';
 import { getProjectByPublicSlug } from './platform/projectRegistry';
 import './experience/showroom-premium.css';
 
@@ -46,5 +47,5 @@ export default function App() {
     );
   }
 
-  return <AppErrorBoundary><ShowroomStable projectId={project.id} /></AppErrorBoundary>;
+  return <AppErrorBoundary><ShowroomStable projectId={project.id} /><LeadCapture projectId={project.id} /></AppErrorBoundary>;
 }
