@@ -52,8 +52,16 @@ export function getPublishedShowroomBySlug(publicSlug) {
     .map((item) => ({ ...item, metadata: parseJson(item.metadata) }));
   const floors = db.prepare('SELECT id, projectId, buildingId, number, name, metadata, createdAt FROM floors WHERE projectId = ? ORDER BY number ASC').all(row.id)
     .map((item) => ({ ...item, metadata: parseJson(item.metadata) }));
-  const units = db.prepare('SELECT id, projectId, buildingId, floorId, number, surface, bedrooms, bathrooms, terrace, price, currency, status, description, planId, modelReference, images, createdAt FROM units WHERE projectId = ? ORDER BY floorId, number ASC').all(row.id)
-    .map(normalizeUnit);
+  const units = db.prepare(
+    `SELECT u.id, u.projectId, u.buildingId, u.floorId, u.number, u.surface, u.bedrooms, u.bathrooms, u.terrace,
+            u.price, u.currency, u.status, u.description, u.planId, u.modelReference, u.images, u.createdAt,
+            f.number AS floor, f.name AS floorName, b.name AS buildingName, b.reference AS buildingReference
+     FROM units u
+     LEFT JOIN floors f ON f.id = u.floorId AND f.projectId = u.projectId
+     LEFT JOIN buildings b ON b.id = u.buildingId AND b.projectId = u.projectId
+     WHERE u.projectId = ?
+     ORDER BY f.number ASC, u.number ASC`,
+  ).all(row.id).map(normalizeUnit);
   const plans = db.prepare('SELECT id, projectId, name, kind, filePath, description, createdAt FROM plans WHERE projectId = ? ORDER BY createdAt ASC').all(row.id);
   const amenities = db.prepare('SELECT id, projectId, name, description, category, createdAt FROM amenities WHERE projectId = ? ORDER BY createdAt ASC').all(row.id);
   const assets = db.prepare('SELECT id, projectId, entityType, entityId, name, kind, path, url, mimeType, metadata, isPrimary, createdAt FROM assets WHERE projectId = ? ORDER BY createdAt ASC').all(row.id).map(normalizeAsset);
