@@ -1,16 +1,10 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { useMemo, useState } from 'react';
+import { getProjectById, getProjectUnits } from '../platform/projectRegistry';
+import { STATUS_LABELS, UNIT_STATUS } from '../domain/platformModels';
 
-const units = Array.from({ length: 48 }, (_, i) => ({
-  id: i + 1,
-  number: `${Math.floor(i / 4) + 1}${String((i % 4) + 1).padStart(2, '0')}`,
-  floor: Math.floor(i / 4) + 1,
-  bedrooms: i % 3 === 0 ? 4 : i % 2 === 0 ? 3 : 2,
-  surface: i % 3 === 0 ? 168 : i % 2 === 0 ? 132 : 104,
-  price: i % 3 === 0 ? 720000 : i % 2 === 0 ? 560000 : 430000,
-  status: i % 7 === 0 ? 'Reservado' : i % 11 === 0 ? 'Vendida' : 'Disponible',
-}));
+const statusLabel = (status) => STATUS_LABELS[status] ?? status ?? 'Disponible';
 
 function Tree({ position = [0, 0, 0], scale = 1 }) {
   return (
@@ -35,33 +29,33 @@ function Palm({ position = [0, 0, 0], scale = 1 }) {
   );
 }
 
-function Tower({ selected, onSelect, night }) {
-  const floors = useMemo(() => Array.from({ length: 12 }, (_, i) => i + 1), []);
+function Tower({ units, floorNumbers, selected, onSelect, night }) {
   return (
     <group>
       <mesh position={[0, -0.5, 0]} receiveShadow><boxGeometry args={[30, 1, 21]} /><meshStandardMaterial color="#b7a795" roughness={.78} /></mesh>
       <mesh position={[0, .15, 0]} castShadow><boxGeometry args={[21, .9, 13]} /><meshStandardMaterial color="#cfc4b5" roughness={.58} /></mesh>
       <mesh position={[0, .65, 5.1]}><boxGeometry args={[18, .08, .08]} /><meshStandardMaterial color="#f0e8dc" roughness={.3} /></mesh>
-      {floors.map((floor) => (
+      {floorNumbers.map((floor) => (
         <group key={floor} position={[0, floor * 2.35, 0]}>
           <mesh castShadow receiveShadow><boxGeometry args={[18, 2.04, 9.6]} /><meshStandardMaterial color="#ded6ca" roughness={.4} metalness={.06} /></mesh>
           <mesh position={[0, -.78, 5.0]} castShadow><boxGeometry args={[19.2, .13, 1.15]} /><meshStandardMaterial color="#b8aa98" roughness={.58} /></mesh>
           <mesh position={[0, -.72, 4.98]}><boxGeometry args={[17.7, .05, .06]} /><meshStandardMaterial color="#eee6da" roughness={.3} /></mesh>
-          {[-6.2, -2.1, 2.1, 6.2].map((x, col) => {
-            const unit = units[(floor - 1) * 4 + col];
+          {units.filter((unit) => Number(unit.floor) === floor).slice(0, 4).map((unit, col) => {
+            const xPositions = [-6.2, -2.1, 2.1, 6.2];
             const active = selected?.id === unit.id;
+            const available = unit.status === UNIT_STATUS.AVAILABLE;
             return (
-              <group key={unit.id} position={[x, .08, 4.84]} onClick={() => onSelect(unit)}>
-                <mesh castShadow><boxGeometry args={[3.45, 1.55, .12]} /><meshStandardMaterial color={active ? '#e2b85f' : unit.status === 'Disponible' ? '#73989d' : '#5c6666'} emissive={active ? '#9d6817' : unit.status === 'Disponible' && night ? '#183c43' : '#000'} emissiveIntensity={active ? .8 : night && unit.status === 'Disponible' ? .65 : 0} roughness={.14} metalness={.35} /></mesh>
+              <group key={unit.id} position={[xPositions[col], .08, 4.84]} onClick={() => onSelect(unit)}>
+                <mesh castShadow><boxGeometry args={[3.45, 1.55, .12]} /><meshStandardMaterial color={active ? '#e2b85f' : available ? '#73989d' : '#5c6666'} emissive={active ? '#9d6817' : available && night ? '#183c43' : '#000'} emissiveIntensity={active ? .8 : night && available ? .65 : 0} roughness={.14} metalness={.35} /></mesh>
                 <mesh position={[0, -.92, -.02]}><boxGeometry args={[3.45, .07, .08]} /><meshStandardMaterial color="#aa9b88" roughness={.5} /></mesh>
               </group>
             );
           })}
         </group>
       ))}
-      <mesh position={[0, 29, 0]} castShadow><boxGeometry args={[19, .8, 11]} /><meshStandardMaterial color="#e6ddd0" roughness={.36} /></mesh>
-      <mesh position={[0, 29.5, 0]}><boxGeometry args={[15, .14, 7]} /><meshStandardMaterial color="#62aab1" roughness={.08} metalness={.2} /></mesh>
-      <mesh position={[0, 30, 0]}><boxGeometry args={[10, .12, 2.8]} /><meshStandardMaterial color="#eee7dc" roughness={.28} /></mesh>
+      <mesh position={[0, (floorNumbers.length + 1) * 2.35, 0]} castShadow><boxGeometry args={[19, .8, 11]} /><meshStandardMaterial color="#e6ddd0" roughness={.36} /></mesh>
+      <mesh position={[0, (floorNumbers.length + 1) * 2.35 + .5, 0]}><boxGeometry args={[15, .14, 7]} /><meshStandardMaterial color="#62aab1" roughness={.08} metalness={.2} /></mesh>
+      <mesh position={[0, (floorNumbers.length + 1) * 2.35 + 1, 0]}><boxGeometry args={[10, .12, 2.8]} /><meshStandardMaterial color="#eee7dc" roughness={.28} /></mesh>
     </group>
   );
 }
@@ -80,7 +74,7 @@ function Landscape({ night }) {
   );
 }
 
-function Scene({ selected, onSelect, night }) {
+function Scene({ units, floorNumbers, selected, onSelect, night }) {
   return (
     <Canvas shadows dpr={[1, 1.5]} camera={{ position: [39, 20, 44], fov: 34 }} gl={{ antialias: true, powerPreference: 'high-performance' }} style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={[night ? '#071316' : '#9dbdc0']} />
@@ -89,57 +83,63 @@ function Scene({ selected, onSelect, night }) {
       <directionalLight position={[-24, 38, 22]} intensity={night ? 1.8 : 4.5} castShadow shadow-mapSize={[2048, 2048]} />
       <directionalLight position={[24, 16, -16]} intensity={night ? .75 : 1.1} />
       <Landscape night={night} />
-      <Tower selected={selected} onSelect={onSelect} night={night} />
+      <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />
       <OrbitControls enableDamping dampingFactor={.055} minDistance={15} maxDistance={78} maxPolarAngle={Math.PI / 2.02} target={[0, 13, 4]} />
     </Canvas>
   );
 }
 
-export default function ShowroomStable() {
+export default function ShowroomStable({ projectId = 'ocean-mansions' }) {
+  const project = getProjectById(projectId);
+  const units = useMemo(() => getProjectUnits(projectId), [projectId]);
+  const floorNumbers = useMemo(() => [...new Set(units.map((unit) => Number(unit.floor)).filter(Number.isFinite))].sort((a, b) => a - b), [units]);
   const [selected, setSelected] = useState(null);
   const [night, setNight] = useState(false);
   const [floor, setFloor] = useState('Todos');
   const [activeExperience, setActiveExperience] = useState('3D interactivo');
   const filtered = floor === 'Todos' ? units : units.filter((unit) => String(unit.floor) === floor);
-  const available = units.filter((u) => u.status === 'Disponible').length;
+  const available = units.filter((u) => u.status === UNIT_STATUS.AVAILABLE).length;
+  const buildingHeight = floorNumbers.length;
+
+  if (!project) return null;
 
   return (
     <main className={`stableShowroom ${night ? 'isNight' : ''}`}>
       <section className="stableHero">
-        <div className="stableCanvas"><Scene selected={selected} onSelect={setSelected} night={night} /></div>
+        <div className="stableCanvas"><Scene units={units} floorNumbers={floorNumbers} selected={selected} onSelect={setSelected} night={night} /></div>
         <div className="stableAtmosphere" />
         <header className="stableNav">
-          <div className="stableBrand"><span>OM</span><div><b>OCEAN MANSIONS</b><small>PUNTA DEL ESTE · PLAYA MANSA</small></div></div>
+          <div className="stableBrand"><span>OM</span><div><b>{project.name.toUpperCase()}</b><small>{project.location?.city?.toUpperCase()} · {project.location?.district?.toUpperCase()}</small></div></div>
           <nav><a href="#proyecto">Proyecto</a><a href="#unidades">Unidades</a><a href="#experiencia">Experiencia</a></nav>
           <button className="modeButton" onClick={() => setNight((v) => !v)}><span>{night ? '☼' : '◐'}</span>{night ? 'Día' : 'Noche'}</button>
         </header>
         <div className="heroRail"><span>01</span><i /><span>04</span></div>
         <div className="stableCopy">
-          <p className="stableEyebrow">PUNTA DEL ESTE · URUGUAY</p>
-          <h1>Ocean<br /><i>Mansions.</i></h1>
-          <p>Una nueva forma de recorrer, entender y elegir una propiedad frente al mar.</p>
+          <p className="stableEyebrow">{project.location?.city?.toUpperCase()} · {project.location?.country?.toUpperCase()}</p>
+          <h1>{project.name.split(' ')[0]}<br /><i>{project.name.split(' ').slice(1).join(' ')}.</i></h1>
+          <p>{project.description || project.publication?.description || 'Una nueva forma de recorrer, entender y elegir una propiedad frente al mar.'}</p>
           <div className="stableButtons"><a href="#unidades">Ver unidades <span>↗</span></a><a className="ghost" href="#experiencia">Explorar proyecto <span>↓</span></a></div>
         </div>
-        <div className="heroLocation"><span>18 de Julio · Playa Mansa</span><b>—</b><span>34°54' S · 54°57' O</span></div>
-        <div className="stableStats"><span><b>12</b>Pisos</span><span><b>48</b>Unidades</span><span><b>{available}</b>Disponibles</span><span><b>2027</b>Entrega</span></div>
-        {selected && <aside className="stableCard"><button onClick={() => setSelected(null)}>×</button><small>UNIDAD {selected.number} · PISO {selected.floor}</small><h2>{selected.status}</h2><p>{selected.surface} m² · {selected.bedrooms} dormitorios</p><strong>US$ {selected.price.toLocaleString('en-US')}</strong><a href="#unidades">Consultar unidad <span>↗</span></a></aside>}
+        <div className="heroLocation"><span>{project.location?.district || project.location?.city}</span><b>—</b><span>{project.location?.country}</span></div>
+        <div className="stableStats"><span><b>{buildingHeight}</b>Pisos</span><span><b>{units.length}</b>Unidades</span><span><b>{available}</b>Disponibles</span><span><b>2027</b>Entrega</span></div>
+        {selected && <aside className="stableCard"><button onClick={() => setSelected(null)}>×</button><small>UNIDAD {selected.number} · PISO {selected.floor}</small><h2>{statusLabel(selected.status)}</h2><p>{selected.surface} m² · {selected.bedrooms} dormitorios</p><strong>{selected.currency === 'USD' ? 'US$' : selected.currency} {Number(selected.price || 0).toLocaleString('en-US')}</strong><a href="#unidades">Consultar unidad <span>↗</span></a></aside>}
       </section>
 
       <section id="proyecto" className="stableSection intro">
-        <div className="introVisual"><div className="visualLabel">OCEAN MANSIONS / 01</div><div className="visualTower"><span>12</span><i>FLOORS</i></div></div>
+        <div className="introVisual"><div className="visualLabel">{project.name.toUpperCase()} / 01</div><div className="visualTower"><span>{buildingHeight}</span><i>FLOORS</i></div></div>
         <div className="introText"><p className="stableEyebrow">EL PROYECTO</p><h2>La propiedad<br /><i>se recorre.</i></h2><p>Arquitectura, disponibilidad e información comercial en una sola experiencia digital. Un showroom pensado para que cada decisión empiece antes de la visita.</p><div className="textLink">Conocé el proyecto <span>↗</span></div></div>
       </section>
 
       <section id="unidades" className="stableSection inventory">
-        <div className="sectionTop"><div><p className="stableEyebrow">INVENTARIO EN TIEMPO REAL</p><h2>Encontrá tu <i>unidad.</i></h2></div><div className="inventoryControl"><span>FILTRAR POR PISO</span><select value={floor} onChange={(e) => setFloor(e.target.value)}><option>Todos</option>{Array.from({ length: 12 }, (_, i) => <option key={i + 1}>{i + 1}</option>)}</select></div></div>
-        <div className="unitGrid">{filtered.map((unit) => <button key={unit.id} className={selected?.id === unit.id ? 'selected' : ''} onClick={() => setSelected(unit)}><div className="unitTop"><b>{unit.number}</b><small>{unit.status}</small></div><span>Piso {unit.floor} · {unit.surface} m² · {unit.bedrooms} dormitorios</span><strong>US$ {unit.price.toLocaleString('en-US')}</strong><em>Ver unidad ↗</em></button>)}</div>
+        <div className="sectionTop"><div><p className="stableEyebrow">INVENTARIO EN TIEMPO REAL</p><h2>Encontrá tu <i>unidad.</i></h2></div><div className="inventoryControl"><span>FILTRAR POR PISO</span><select value={floor} onChange={(e) => setFloor(e.target.value)}><option>Todos</option>{floorNumbers.map((item) => <option key={item}>{item}</option>)}</select></div></div>
+        <div className="unitGrid">{filtered.map((unit) => <button key={unit.id} className={selected?.id === unit.id ? 'selected' : ''} onClick={() => setSelected(unit)}><div className="unitTop"><b>{unit.number}</b><small>{statusLabel(unit.status)}</small></div><span>Piso {unit.floor} · {unit.surface} m² · {unit.bedrooms} dormitorios</span><strong>{unit.currency === 'USD' ? 'US$' : unit.currency} {Number(unit.price || 0).toLocaleString('en-US')}</strong><em>Ver unidad ↗</em></button>)}</div>
       </section>
 
       <section id="experiencia" className="stableSection experience">
         <div className="experienceLead"><p className="stableEyebrow">DIGITAL PROPERTY EXPERIENCE</p><h2>Antes de comprar,<br /><i>vivila.</i></h2><p>El showroom transforma una ficha inmobiliaria en un recorrido completo: edificio, interiores, amenities, planos, inventario y ubicación.</p></div>
         <div className="experiencePanel"><div className="experienceTabs">{['3D interactivo', 'Interiores', 'Amenities', 'Ubicación'].map((item, i) => <button key={item} className={activeExperience === item ? 'active' : ''} onClick={() => setActiveExperience(item)}><span>0{i + 1}</span>{item}</button>)}</div><div className="experienceDetail"><small>EXPERIENCIA / {activeExperience.toUpperCase()}</small><h3>{activeExperience === '3D interactivo' ? 'Recorré la arquitectura.' : activeExperience === 'Interiores' ? 'Entrá antes de visitar.' : activeExperience === 'Amenities' ? 'Descubrí cómo se vive.' : 'Entendé dónde estás comprando.'}</h3><p>Una capa digital diseñada para reducir fricción comercial y darle al proyecto una presencia acorde a su valor.</p></div></div>
       </section>
-      <footer className="stableFooter"><span>OCEAN MANSIONS</span><span>PUNTA DEL ESTE · URUGUAY</span><span>SHOWROOM 01 / 01</span></footer>
+      <footer className="stableFooter"><span>{project.name.toUpperCase()}</span><span>{project.location?.city?.toUpperCase()} · {project.location?.country?.toUpperCase()}</span><span>SHOWROOM 01 / 01</span></footer>
     </main>
   );
 }
