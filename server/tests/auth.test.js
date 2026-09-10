@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 
 const port = 4128;
 const baseUrl = `http://127.0.0.1:${port}`;
+const platformKey = 'test-platform-key';
 const dataPath = path.resolve(process.cwd(), 'server', 'data', 'platform.test.sqlite');
 
 function waitForServer(child) {
@@ -37,7 +38,7 @@ function waitForServer(child) {
 async function createCompany(name) {
   const response = await fetch(`${baseUrl}/api/admin/companies`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-platform-key': platformKey },
     body: JSON.stringify({
       name,
       slug: `${name.toLowerCase().replaceAll(' ', '-')}-${crypto.randomUUID().slice(0, 8)}`,
@@ -47,10 +48,10 @@ async function createCompany(name) {
   return response.json();
 }
 
-test('auth por api key protege las rutas admin/company', async () => {
+test('aislamiento por tenant y acceso global solo para platform owner', async () => {
   const child = spawn(process.execPath, ['server/index.js'], {
     cwd: process.cwd(),
-    env: { ...process.env, NODE_ENV: 'test', PORT: String(port) },
+    env: { ...process.env, NODE_ENV: 'test', PORT: String(port), PLATFORM_API_KEY: platformKey },
     stdio: 'ignore',
   });
 
@@ -58,6 +59,21 @@ test('auth por api key protege las rutas admin/company', async () => {
     await waitForServer(child);
     const companyA = await createCompany('Company A');
     const companyB = await createCompany('Company B');
+
+    const noPlatformKey = await fetch(`${baseUrl}/api/admin/companies`);
+    assert.equal(noPlatformKey.status, 401);
+
+    const wrongPlatformKey = await fetch(`${baseUrl}/api/admin/companies`, {
+      headers: { 'x-platform-key': 'not-a-real-key' },
+    });
+    assert.equal(wrongPlatformKey.status, 401);
+
+    const platformCompanies = await fetch(`${baseUrl}/api/admin/companies`, {
+      headers: { 'x-platform-key': platformKey },
+    });
+    assert.equal(platformCompanies.status, 200);
+    const companies = await platformCompanies.json();
+    assert.equal(companies.length, 2);
 
     const noKey = await fetch(`${baseUrl}/api/admin/companies/${companyA.id}/projects`);
     assert.equal(noKey.status, 401);
@@ -76,6 +92,36 @@ test('auth por api key protege las rutas admin/company', async () => {
       headers: { 'x-api-key': companyA.apiKey },
     });
     assert.equal(ownCompany.status, 200);
+
+    const createProject = await fetch(`${baseUrl}/api/admin/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': companyA.apiKey },
+      body: JSON.stringify({ companyId: companyA.id, name: 'Project A', slug: `project-a-${crypto.randomUUID().slice(0, 8)}` }),
+    });
+    assert.equal(createProject.status, 201);
+    const projectA = await createProject.json();
+
+    const crossTenantProjectRead = await fetch(`${baseUrl}/api/admin/projects/${projectA.id}`, {
+      headers: { 'x-api-key': companyB.apiKey },
+    });
+    assert.equal(crossTenantProjectRead.status, 403);
+
+    const crossTenantProjectMutation = await fetch(`${baseUrl}/api/admin/projects/${projectA.id}/buildings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': companyB.apiKey },
+      body: JSON.stringify({ name: 'Should not exist' }),
+    });
+    assert.equal(crossTenantProjectMutation.status, 403);
+
+    const platformProjectRead = await fetch(`${baseUrl}/api/platform/projects/${projectA.id}`, {
+      headers: { 'x-platform-key': platformKey },
+    });
+    assert.equal(platformProjectRead.status, 200);
+
+    const tenantPlatformRoute = await fetch(`${baseUrl}/api/platform/projects/${projectA.id}`, {
+      headers: { 'x-api-key': companyB.apiKey },
+    });
+    assert.equal(tenantPlatformRoute.status, 401);
 
     const companyRouteNoKey = await fetch(`${baseUrl}/api/company/${companyA.id}/projects`);
     assert.equal(companyRouteNoKey.status, 401);
