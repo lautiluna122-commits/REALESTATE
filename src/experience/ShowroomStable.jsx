@@ -4,9 +4,6 @@ import { useMemo, useState } from 'react';
 import { getProjectById, getProjectUnits } from '../platform/projectRegistry';
 import { STATUS_LABELS, UNIT_STATUS } from '../domain/platformModels';
 
-const project = getProjectById('ocean-mansions');
-const units = getProjectUnits(project.id);
-const floorNumbers = [...new Set(units.map((unit) => Number(unit.floor)).filter(Number.isFinite))].sort((a, b) => a - b);
 const statusLabel = (status) => STATUS_LABELS[status] ?? status ?? 'Disponible';
 
 function Tree({ position = [0, 0, 0], scale = 1 }) {
@@ -32,14 +29,13 @@ function Palm({ position = [0, 0, 0], scale = 1 }) {
   );
 }
 
-function Tower({ selected, onSelect, night }) {
-  const floors = floorNumbers;
+function Tower({ units, floorNumbers, selected, onSelect, night }) {
   return (
     <group>
       <mesh position={[0, -0.5, 0]} receiveShadow><boxGeometry args={[30, 1, 21]} /><meshStandardMaterial color="#b7a795" roughness={.78} /></mesh>
       <mesh position={[0, .15, 0]} castShadow><boxGeometry args={[21, .9, 13]} /><meshStandardMaterial color="#cfc4b5" roughness={.58} /></mesh>
       <mesh position={[0, .65, 5.1]}><boxGeometry args={[18, .08, .08]} /><meshStandardMaterial color="#f0e8dc" roughness={.3} /></mesh>
-      {floors.map((floor) => (
+      {floorNumbers.map((floor) => (
         <group key={floor} position={[0, floor * 2.35, 0]}>
           <mesh castShadow receiveShadow><boxGeometry args={[18, 2.04, 9.6]} /><meshStandardMaterial color="#ded6ca" roughness={.4} metalness={.06} /></mesh>
           <mesh position={[0, -.78, 5.0]} castShadow><boxGeometry args={[19.2, .13, 1.15]} /><meshStandardMaterial color="#b8aa98" roughness={.58} /></mesh>
@@ -57,9 +53,9 @@ function Tower({ selected, onSelect, night }) {
           })}
         </group>
       ))}
-      <mesh position={[0, (floors.length + 1) * 2.35, 0]} castShadow><boxGeometry args={[19, .8, 11]} /><meshStandardMaterial color="#e6ddd0" roughness={.36} /></mesh>
-      <mesh position={[0, (floors.length + 1) * 2.35 + .5, 0]}><boxGeometry args={[15, .14, 7]} /><meshStandardMaterial color="#62aab1" roughness={.08} metalness={.2} /></mesh>
-      <mesh position={[0, (floors.length + 1) * 2.35 + 1, 0]}><boxGeometry args={[10, .12, 2.8]} /><meshStandardMaterial color="#eee7dc" roughness={.28} /></mesh>
+      <mesh position={[0, (floorNumbers.length + 1) * 2.35, 0]} castShadow><boxGeometry args={[19, .8, 11]} /><meshStandardMaterial color="#e6ddd0" roughness={.36} /></mesh>
+      <mesh position={[0, (floorNumbers.length + 1) * 2.35 + .5, 0]}><boxGeometry args={[15, .14, 7]} /><meshStandardMaterial color="#62aab1" roughness={.08} metalness={.2} /></mesh>
+      <mesh position={[0, (floorNumbers.length + 1) * 2.35 + 1, 0]}><boxGeometry args={[10, .12, 2.8]} /><meshStandardMaterial color="#eee7dc" roughness={.28} /></mesh>
     </group>
   );
 }
@@ -78,7 +74,7 @@ function Landscape({ night }) {
   );
 }
 
-function Scene({ selected, onSelect, night }) {
+function Scene({ units, floorNumbers, selected, onSelect, night }) {
   return (
     <Canvas shadows dpr={[1, 1.5]} camera={{ position: [39, 20, 44], fov: 34 }} gl={{ antialias: true, powerPreference: 'high-performance' }} style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={[night ? '#071316' : '#9dbdc0']} />
@@ -87,13 +83,16 @@ function Scene({ selected, onSelect, night }) {
       <directionalLight position={[-24, 38, 22]} intensity={night ? 1.8 : 4.5} castShadow shadow-mapSize={[2048, 2048]} />
       <directionalLight position={[24, 16, -16]} intensity={night ? .75 : 1.1} />
       <Landscape night={night} />
-      <Tower selected={selected} onSelect={onSelect} night={night} />
+      <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />
       <OrbitControls enableDamping dampingFactor={.055} minDistance={15} maxDistance={78} maxPolarAngle={Math.PI / 2.02} target={[0, 13, 4]} />
     </Canvas>
   );
 }
 
-export default function ShowroomStable() {
+export default function ShowroomStable({ projectId = 'ocean-mansions' }) {
+  const project = getProjectById(projectId);
+  const units = useMemo(() => getProjectUnits(projectId), [projectId]);
+  const floorNumbers = useMemo(() => [...new Set(units.map((unit) => Number(unit.floor)).filter(Number.isFinite))].sort((a, b) => a - b), [units]);
   const [selected, setSelected] = useState(null);
   const [night, setNight] = useState(false);
   const [floor, setFloor] = useState('Todos');
@@ -102,10 +101,12 @@ export default function ShowroomStable() {
   const available = units.filter((u) => u.status === UNIT_STATUS.AVAILABLE).length;
   const buildingHeight = floorNumbers.length;
 
+  if (!project) return null;
+
   return (
     <main className={`stableShowroom ${night ? 'isNight' : ''}`}>
       <section className="stableHero">
-        <div className="stableCanvas"><Scene selected={selected} onSelect={setSelected} night={night} /></div>
+        <div className="stableCanvas"><Scene units={units} floorNumbers={floorNumbers} selected={selected} onSelect={setSelected} night={night} /></div>
         <div className="stableAtmosphere" />
         <header className="stableNav">
           <div className="stableBrand"><span>OM</span><div><b>{project.name.toUpperCase()}</b><small>{project.location?.city?.toUpperCase()} · {project.location?.district?.toUpperCase()}</small></div></div>
