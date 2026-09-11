@@ -18,6 +18,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npm run test:api
-        env:
-          NODE_OPTIONS: --test-concurrency=1
+      - run: node --test --test-concurrency=1 server/tests/*.test.js
