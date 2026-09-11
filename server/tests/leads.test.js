@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import Database from 'better-sqlite3';
+import { createCompany, createProject, publishProject } from '../services/projectService.js';
 
 const port = 4127;
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -20,35 +21,19 @@ function waitForServer(child) {
       } catch {}
       setTimeout(check, 100);
     };
-    child.once('error', (error) => { clearTimeout(timeout); reject(error); });
+    child.once('error', error => { clearTimeout(timeout); reject(error); });
     check();
   });
 }
 
 test('POST /api/projects/:projectId/leads guarda correctamente el lead', async () => {
   fs.rmSync(dataPath, { force: true });
+  const company = createCompany({ name: 'Lead Test Company', slug: `lead-test-${crypto.randomUUID().slice(0, 8)}` });
+  const project = createProject({ companyId: company.id, name: 'Lead Test Project', slug: `lead-project-${crypto.randomUUID().slice(0, 8)}` });
+  publishProject(project.id, { publicSlug: project.slug });
   const child = spawn(process.execPath, ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, NODE_ENV: 'development', PORT: String(port) }, stdio: 'ignore' });
   try {
     await waitForServer(child);
-    const companyResponse = await fetch(`${baseUrl}/api/companies`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Lead Test Company', slug: `lead-test-${crypto.randomUUID().slice(0, 8)}` }),
-    });
-    assert.equal(companyResponse.status, 201);
-    const company = await companyResponse.json();
-    const projectResponse = await fetch(`${baseUrl}/api/projects`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId: company.id, name: 'Lead Test Project', slug: `lead-project-${crypto.randomUUID().slice(0, 8)}` }),
-    });
-    assert.equal(projectResponse.status, 201);
-    const project = await projectResponse.json();
-
-    const publishResponse = await fetch(`${baseUrl}/api/admin/projects/${project.id}/publish`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': company.apiKey },
-      body: JSON.stringify({ publicSlug: project.slug }),
-    });
-    assert.equal(publishResponse.status, 200);
-
     const leadPayload = { name: 'Ana Pérez', email: 'ana@example.com', phone: '+598 99 123 456' };
     const leadResponse = await fetch(`${baseUrl}/api/projects/${project.id}/leads`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(leadPayload) });
     assert.equal(leadResponse.status, 201);
