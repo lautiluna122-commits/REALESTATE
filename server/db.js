@@ -9,7 +9,9 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbFile = path.join(dataDir, isTestEnv ? 'platform.test.sqlite' : 'platform.sqlite');
+const dbFile = process.env.TEST_DB_FILE
+  ? path.resolve(process.env.TEST_DB_FILE)
+  : path.join(dataDir, isTestEnv ? 'platform.test.sqlite' : 'platform.sqlite');
 if (isTestEnv && fs.existsSync(dbFile)) {
   fs.unlinkSync(dbFile);
 }

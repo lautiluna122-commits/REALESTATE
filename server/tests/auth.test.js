@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 const port = 4128;
 const baseUrl = `http://127.0.0.1:${port}`;
 const platformKey = 'test-platform-key';
-const dataPath = path.resolve(process.cwd(), 'server', 'data', 'platform.test.sqlite');
+const dataPath = path.resolve(process.cwd(), 'server', 'data', 'platform.auth.test.sqlite');
 
 function waitForServer(child) {
   return new Promise((resolve, reject) => {
@@ -35,7 +35,7 @@ async function createCompany(name) {
 }
 
 test('aislamiento por tenant y acceso global solo para platform owner', async () => {
-  const child = spawn(process.execPath, ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, NODE_ENV: 'test', PORT: String(port), PLATFORM_API_KEY: platformKey }, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, NODE_ENV: 'test', PORT: String(port), PLATFORM_API_KEY: platformKey, TEST_DB_FILE: dataPath }, stdio: 'ignore' });
   try {
     await waitForServer(child);
     const companyA = await createCompany('Company A');

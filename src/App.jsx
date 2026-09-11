@@ -52,6 +52,6 @@ export default function App() {
   if (path === '/admin' || path.startsWith('/admin/')) return <AdminPortal />;
   if (path === '/platform' || path.startsWith('/platform/')) return <AdminPortal platform />;
   const match = path.match(/^\/proyecto\/([^/]+)\/?$/);
-  const publicSlug = match?.[1] ?? 'ocean-mansions';
-  return <PublicShowroom publicSlug={publicSlug} />;
+  if (!match) return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:32,background:'#0b1214',color:'#fff',fontFamily:'Arial,sans-serif'}}><section><p>REALESTATE</p><h1>Showroom no encontrado.</h1><p>Ingresá a la URL pública de un proyecto publicado.</p></section></main>;
+  return <PublicShowroom publicSlug={match[1]} />;
 }
