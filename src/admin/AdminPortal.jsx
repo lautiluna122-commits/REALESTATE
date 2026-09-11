@@ -246,6 +246,28 @@ function Content({ project, data, headers, act }) {
   );
 }
 
+function ProjectBuilder({ project, data, headers, act }) {
+  const [tab, setTab] = useState('overview');
+  const tabs = ['overview', 'structure', 'inventory', 'media', 'ai', 'experience', 'publication'];
+  const counts = {
+    buildings: data.buildings?.length || 0,
+    floors: data.floors?.length || 0,
+    units: data.units?.length || 0,
+    plans: data.plans?.length || 0,
+    assets: data.assets?.length || 0,
+  };
+  return <div className="builder">
+    <nav className="builderTabs">{tabs.map((item) => <button className={tab === item ? 'active' : ''} key={item} onClick={() => setTab(item)}>{item === 'ai' ? 'IA Import' : item === 'experience' ? 'Experiencia' : item === 'media' ? 'Media y planos' : item === 'inventory' ? 'Inventario' : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
+    {tab === 'overview' && <section className="adminPanel"><span className="adminKicker">PROJECT BUILDER</span><h2>{project.name}</h2><p>{project.description || 'Configurá el proyecto completo desde una única fuente de verdad.'}</p><div className="adminStats"><div><strong>{counts.buildings}</strong><span>Edificios</span></div><div><strong>{counts.floors}</strong><span>Plantas</span></div><div><strong>{counts.units}</strong><span>Unidades</span></div><div><strong>{counts.assets}</strong><span>Assets</span></div></div></section>}
+    {tab === 'structure' && <Structure project={project} data={data} headers={headers} act={act} />}
+    {tab === 'inventory' && <Inventory project={project} data={data} headers={headers} act={act} />}
+    {tab === 'media' && <Media project={project} data={data} headers={headers} act={act} />}
+    {tab === 'ai' && <AIIntake project={project} data={data} headers={headers} act={act} />}
+    {tab === 'experience' && <ExperienceConfig project={project} data={data} headers={headers} act={act} />}
+    {tab === 'publication' && <Publication project={project} data={data} headers={headers} act={act} />}
+  </div>;
+}
+
 function Publication({ project, data, headers, act }) {
   const [form, setForm] = useState({ publicSlug: data.publication?.publicSlug || project.slug, title: data.publication?.title || project.name, description: data.publication?.description || '', thumbnail: data.publication?.thumbnail || '', buttonText: data.publication?.buttonText || 'Explorar en 3D' });
   const save = () => act(() => data.publication ? request(`/admin/projects/${project.id}/publication`, json('PATCH', form, headers)) : request(`/admin/projects/${project.id}/publication`, json('POST', form, headers)), 'Publicación guardada');
