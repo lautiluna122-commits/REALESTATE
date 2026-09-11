@@ -5,7 +5,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import Database from 'better-sqlite3';
-import { createCompany, createProject, publishProject } from '../services/projectService.js';
 
 const port = 4127;
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -28,6 +27,7 @@ function waitForServer(child) {
 
 test('POST /api/projects/:projectId/leads guarda correctamente el lead', async () => {
   fs.rmSync(dataPath, { force: true });
+  const { createCompany, createProject, publishProject } = await import('../services/projectService.js');
   const company = createCompany({ name: 'Lead Test Company', slug: `lead-test-${crypto.randomUUID().slice(0, 8)}` });
   const project = createProject({ companyId: company.id, name: 'Lead Test Project', slug: `lead-project-${crypto.randomUUID().slice(0, 8)}` });
   publishProject(project.id, { publicSlug: project.slug });
@@ -45,7 +45,6 @@ test('POST /api/projects/:projectId/leads guarda correctamente el lead', async (
     assert.equal(lead.unitId, null);
     assert.match(lead.id, /^[0-9a-f-]{36}$/);
     assert.equal(Number.isNaN(Date.parse(lead.createdAt)), false);
-
     const db = new Database(dataPath, { readonly: true });
     try {
       const row = db.prepare('SELECT id, name, email, phone, message, projectId, unitId, createdAt FROM leads WHERE id = ?').get(lead.id);
