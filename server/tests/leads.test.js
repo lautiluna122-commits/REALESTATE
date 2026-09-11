@@ -25,7 +25,7 @@ function waitForServer(child) {
   });
 }
 
-test('POST /api/projects/:projectId/leads guarda correctamente el lead', async () => {
+test('POST /projects/:projectId/leads guarda correctamente el lead', async () => {
   fs.rmSync(dataPath, { force: true });
   const child = spawn(process.execPath, ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, NODE_ENV: 'development', PORT: String(port) }, stdio: 'ignore' });
   try {
