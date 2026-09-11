@@ -25,12 +25,12 @@ async function request(endpoint, options = {}) {
 // ============================================================
 
 export const companiesAPI = {
-  listAll: () => request('/api/admin/companies'),
+  listAll: () => request('/admin/companies'),
   create: (data) => request('/api/admin/companies', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  getById: (companyId) => request(`/api/admin/companies/${companyId}`),
+  getById: (companyId) => request(`/admin/companies/${companyId}`),
   listProjects: (companyId) => request(`/api/admin/companies/${companyId}/projects`),
 };
 
@@ -39,14 +39,14 @@ export const companiesAPI = {
 // ============================================================
 
 export const projectsAPI = {
-  create: (data) => request('/api/admin/projects', {
+  create: (data) => request('/admin/projects', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
   getById: (projectId) => request(`/api/admin/projects/${projectId}`),
   listByCompany: (companyId) => request(`/api/admin/companies/${companyId}/projects`),
-  listPublic: () => request('/api/public/projects'),
-  getPublishedBySlug: (publicSlug) => request(`/api/public/projects/${publicSlug}`),
+  listPublic: () => request('/public/projects'),
+  getPublishedBySlug: (publicSlug) => request(`/public/projects/${publicSlug}`),
 };
 
 // ============================================================
