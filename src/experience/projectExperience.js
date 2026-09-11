@@ -1,7 +1,8 @@
-import { getProjectById } from '../platform/projectRegistry';
+import { getProjectById } from '../platform/projectRegistry.js';
 
 export function createProjectExperience(projectId = 'ocean-mansions') {
   const project = getProjectById(projectId);
+  if (!project) return null;
 
   return {
     projectId: project.id,
