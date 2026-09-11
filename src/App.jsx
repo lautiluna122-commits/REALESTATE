@@ -50,6 +50,7 @@ function PublicShowroom({ publicSlug }) {
 export default function App() {
   const path = window.location.pathname;
   if (path === '/admin' || path.startsWith('/admin/')) return <AdminPortal />;
+  if (path === '/workspace' || path.startsWith('/workspace/')) return <AdminPortal />;
   if (path === '/platform' || path.startsWith('/platform/')) return <AdminPortal platform />;
   const match = path.match(/^\/proyecto\/([^/]+)\/?$/);
   if (!match) return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:32,background:'#0b1214',color:'#fff',fontFamily:'Arial,sans-serif'}}><section><p>REALESTATE</p><h1>Showroom no encontrado.</h1><p>Ingresá a la URL pública de un proyecto publicado.</p></section></main>;
