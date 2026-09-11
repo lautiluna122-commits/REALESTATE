@@ -4,6 +4,8 @@ export const permissionsMatrix = {
   [ROLE.SUPER_ADMIN]: ['*'],
   [ROLE.COMPANY_ADMIN]: ['project:read', 'project:write', 'project:publish', 'unit:write', 'content:write'],
   [ROLE.COMPANY_EDITOR]: ['project:read', 'unit:write', 'content:write'],
+  [ROLE.COMPANY_MANAGER]: ['project:read', 'project:write', 'project:publish', 'unit:write', 'content:write', 'lead:read'],
+  [ROLE.COMPANY_VIEWER]: ['project:read', 'showroom:read'],
   [ROLE.PUBLIC_VIEWER]: ['project:read', 'showroom:read'],
 };
 
