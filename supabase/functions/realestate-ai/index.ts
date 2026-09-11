@@ -31,24 +31,36 @@ async function ownProject(req: Request, projectId: string) {
   return { company, project };
 }
 
-const serializeJob = (row: any) => ({
-  ...row,
-  projectId: row.projectid,
-  sourceAssetId: row.source_asset_id,
-  requestedBy: row.requested_by,
-  inputManifest: row.input_manifest || {},
-  extractedData: row.extracted_data || null,
-  validationErrors: row.validation_errors || [],
-  aiMetadata: row.ai_metadata || null,
-  createdAt: row.createdat,
-  startedAt: row.startedat,
-  completedAt: row.completedat,
-});
+const serializeJob = (row: any) => ({ ...row, projectId: row.projectid, sourceAssetId: row.source_asset_id, requestedBy: row.requested_by, inputManifest: row.input_manifest || {}, extractedData: row.extracted_data || null, validationErrors: row.validation_errors || [], aiMetadata: row.ai_metadata || null, createdAt: row.createdat, startedAt: row.startedat, completedAt: row.completedat });
 
 async function listJobs(projectId: string) {
   const { data, error } = await db.from("content_ingestion_jobs").select("*").eq("projectid", projectId).order("createdat", { ascending: false });
   if (error) throw error;
   return (data || []).map(serializeJob);
+}
+
+async function processOpenAI(job: any, assets: any[]) {
+  const apiKey = Deno.env.get("OPENAI_API_KEY") || "";
+  if (!apiKey) throw Object.assign(new Error("AI provider is not configured: OPENAI_API_KEY is missing"), { status: 503 });
+  const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.6-luna";
+  const content: any[] = [{ type: "input_text", text: `You are the structured ingestion engine for a real-estate virtual showroom. Analyze the supplied project material. Return ONLY valid JSON matching this shape: {"structure":{"buildings":[],"floors":[],"units":[],"amenities":[]},"scene":{"environment":{},"anchors":[]},"media":{"assets":[],"hotspots":[]},"confidence":0,"notes":[],"sources":[]}. Never invent measurements, prices, unit numbers or geometry. Use null when unknown. For every inferred value include a source filename and confidence. Job kind: ${job.kind}. Context: ${String(job.input_manifest?.notes || "")}` }];
+  for (const asset of assets) {
+    const { data: signed, error } = await db.storage.from("project-assets").createSignedUrl(asset.path, 900);
+    if (error) throw error;
+    if (asset.mimetype?.startsWith("image/")) content.push({ type: "input_image", image_url: signed.signedUrl });
+    else if (asset.mimetype === "application/pdf" || asset.mimetype?.includes("spreadsheet") || asset.mimetype === "text/csv") content.push({ type: "input_file", file_url: signed.signedUrl });
+    else content.push({ type: "input_text", text: `Source asset: ${asset.name} (${asset.mimetype}). Storage path: ${asset.path}. This asset must be reviewed by a human if its contents cannot be directly interpreted.` });
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, input: [{ role: "user", content }], max_output_tokens: 12000 }) });
+  const raw = await response.text();
+  if (!response.ok) throw new Error(`AI provider error ${response.status}: ${raw.slice(0, 1000)}`);
+  const payload = JSON.parse(raw);
+  const outputText = payload.output_text || (payload.output || []).flatMap((item: any) => item.content || []).map((part: any) => part.text || "").join("");
+  const cleaned = String(outputText).replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  let extractedData: any;
+  try { extractedData = JSON.parse(cleaned); } catch { throw new Error("AI provider returned invalid JSON; job requires manual retry"); }
+  return { extractedData, metadata: { provider: "openai", model, responseId: payload.id || null } };
 }
 
 Deno.serve(async (req) => {
@@ -75,13 +87,32 @@ Deno.serve(async (req) => {
         if (assetError) throw assetError;
         if ((assets || []).length !== sourceAssetIds.length) return fail("one or more source assets do not belong to this project", 400);
         const inputManifest = { kind, notes: String(body.notes || "").slice(0, 5000), assets: assets || [], requestedAt: now() };
-        const { data: job, error } = await db.from("content_ingestion_jobs").insert({
-          id: id(), companyid: company.id, projectid: projectId, source_asset_id: sourceAssetIds[0], kind,
-          status: "QUEUED", requested_by: String(body.requestedBy || company.id), input_manifest: inputManifest,
-          extracted_data: null, validation_errors: [], ai_metadata: { pipeline: "schema-first", provider: Deno.env.get("AI_PROVIDER") || "not-configured" }, createdat: now(),
-        }).select().single();
+        const { data: job, error } = await db.from("content_ingestion_jobs").insert({ id: id(), companyid: company.id, projectid: projectId, source_asset_id: sourceAssetIds[0], kind, status: "QUEUED", requested_by: String(body.requestedBy || company.id), input_manifest: inputManifest, extracted_data: null, validation_errors: [], ai_metadata: { pipeline: "schema-first", provider: "openai" }, createdat: now() }).select().single();
         if (error) throw error;
         return json(serializeJob(job), 201);
+      }
+
+      if (jobId && path[4] === "process" && req.method === "POST") {
+        const { data: job, error: jobError } = await db.from("content_ingestion_jobs").select("*").eq("id", jobId).eq("projectid", projectId).maybeSingle();
+        if (jobError) throw jobError;
+        if (!job) return fail("Job not found", 404);
+        if (!["QUEUED", "FAILED"].includes(String(job.status))) return fail(`job cannot be processed from ${job.status}`, 409);
+        const sourceIds = Array.isArray(job.input_manifest?.assets) ? job.input_manifest.assets.map((asset: any) => asset.id).filter(Boolean) : [];
+        const { data: assets, error: assetError } = await db.from("assets").select("id,name,path,mimetype,metadata,projectid").in("id", sourceIds).eq("projectid", projectId);
+        if (assetError) throw assetError;
+        await db.from("content_ingestion_jobs").update({ status: "PROCESSING", startedat: now(), validation_errors: [] }).eq("id", jobId).eq("projectid", projectId);
+        try {
+          const result = await processOpenAI(job, assets || []);
+          const validationErrors = [];
+          if (!result.extractedData || typeof result.extractedData !== "object") validationErrors.push({ path: "extractedData", message: "AI response is not an object" });
+          const nextStatus = validationErrors.length ? "REVIEW_REQUIRED" : "READY";
+          const { data: updated, error: updateError } = await db.from("content_ingestion_jobs").update({ status: nextStatus, extracted_data: result.extractedData, validation_errors: validationErrors, ai_metadata: { ...(job.ai_metadata || {}), ...result.metadata }, completedat: now() }).eq("id", jobId).eq("projectid", projectId).select().single();
+          if (updateError) throw updateError;
+          return json(serializeJob(updated));
+        } catch (processingError) {
+          await db.from("content_ingestion_jobs").update({ status: "FAILED", validation_errors: [{ path: "provider", message: processingError instanceof Error ? processingError.message : "AI processing failed" }], completedat: now() }).eq("id", jobId).eq("projectid", projectId);
+          throw processingError;
+        }
       }
 
       if (jobId && req.method === "GET") {
@@ -100,31 +131,14 @@ Deno.serve(async (req) => {
         if (!approvedData || typeof approvedData !== "object") return fail("extractedData is required for approval", 400);
         const { data: updated, error } = await db.from("content_ingestion_jobs").update({ status: "APPROVED", extracted_data: approvedData, validation_errors: [], completedat: now(), ai_metadata: { ...(job.ai_metadata || {}), approvedBy: String(body.approvedBy || company.id), approvedAt: now() } }).eq("id", jobId).eq("projectid", projectId).select().single();
         if (error) throw error;
-
-        const manifest = {
-          schemaVersion: 1,
-          projectId,
-          projectName: project.name,
-          generatedBy: "content-ingestion-approval",
-          sourceJobId: jobId,
-          sourceAssetIds: Array.isArray(job.input_manifest?.assets) ? job.input_manifest.assets.map((a: any) => a.id) : [],
-          structure: approvedData.structure || {},
-          scene: approvedData.scene || {},
-          media: approvedData.media || {},
-        };
+        const manifest = { schemaVersion: 1, projectId, projectName: project.name, generatedBy: "content-ingestion-approval", sourceJobId: jobId, sourceAssetIds: Array.isArray(job.input_manifest?.assets) ? job.input_manifest.assets.map((a: any) => a.id) : [], structure: approvedData.structure || {}, scene: approvedData.scene || {}, media: approvedData.media || {} };
         const { data: existing } = await db.from("project_experience_configs").select("id").eq("projectid", projectId).maybeSingle();
         const configPayload = { schema_version: 1, config: manifest, generated_by: "content-ingestion-approval", approved: true, updatedat: now() };
-        if (existing) {
-          const { error: configError } = await db.from("project_experience_configs").update(configPayload).eq("id", existing.id);
-          if (configError) throw configError;
-        } else {
-          const { error: configError } = await db.from("project_experience_configs").insert({ id: id(), projectid: projectId, createdat: now(), ...configPayload });
-          if (configError) throw configError;
-        }
+        if (existing) { const { error: configError } = await db.from("project_experience_configs").update(configPayload).eq("id", existing.id); if (configError) throw configError; }
+        else { const { error: configError } = await db.from("project_experience_configs").insert({ id: id(), projectid: projectId, createdat: now(), ...configPayload }); if (configError) throw configError; }
         return json({ job: serializeJob(updated), experienceConfig: manifest });
       }
     }
-
     return fail("Not found", 404);
   } catch (error) {
     console.error(error);
