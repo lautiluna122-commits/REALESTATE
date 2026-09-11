@@ -1,6 +1,7 @@
+// Static demo data is kept only as a fallback fixture. Published projects should be hydrated from the API.
 import { oceanMansionsProject } from '../data/projects/oceanMansions.js';
 
-export const projectCatalog = [oceanMansionsProject];
+export const projectCatalog = import.meta.env.VITE_ENABLE_DEMO_PROJECTS === 'true' ? [oceanMansionsProject] : [];
 
 export const projectRegistry = Object.fromEntries(
   projectCatalog.map((project) => [project.id, project]),
