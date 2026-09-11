@@ -1,5 +1,5 @@
 // API base URL - configurable
-const API_BASE = 'http://localhost:4000/api/admin';
+const API_BASE = `${import.meta.env.VITE_API_BASE_URL || '/api'}/admin`;
 
 export const apiCall = async (method, endpoint, body = null) => {
   const options = {
