@@ -312,6 +312,10 @@ export default function AdminPortal() {
   const [key, setKey] = useState('');
   const [error, setError] = useState('');
   if (!mode) return <main className="adminLogin"><div className="loginBox"><span className="adminLogo">RE</span><span className="adminKicker">REALESTATE PLATFORM</span><h1>Control del showroom</h1><p>Elegí el acceso correspondiente.</p><div className="contentGrid"><button className="adminPrimary" onClick={() => setMode('tenant')}>Cliente / constructora</button><button className="adminGhost" onClick={() => setMode('platform')}>Platform Owner</button></div></div></main>;
-  if (mode === 'tenant') return <Login title="Workspace cliente" subtitle="Ingresá la API key de la empresa." fields={[["API key", key, setKey, 'password']]} onSubmit={() => { setError(''); if (!key.trim()) return setError('La API key es obligatoria.'); }} error={error} /> && <TenantPortal apiKey={key} />;
-  return <Login title="Platform Owner" subtitle="Ingresá la clave maestra de plataforma." fields={[["Platform key", key, setKey, 'password']]} onSubmit={() => { setError(''); if (!key.trim()) return setError('La platform key es obligatoria.'); }} error={error} /> && <PlatformPortal platformKey={key} />;
+  if (mode === 'tenant') {
+    if (key.trim() && error === '') return <TenantPortal apiKey={key} />;
+    return <Login title="Workspace cliente" subtitle="Ingresá la API key de la empresa." fields={[["API key", key, setKey, 'password']]} onSubmit={() => { setError(''); if (!key.trim()) return setError('La API key es obligatoria.'); }} error={error} />;
+  }
+  if (key.trim() && error === '') return <PlatformPortal platformKey={key} />;
+  return <Login title="Platform Owner" subtitle="Ingresá la clave maestra de plataforma." fields={[["Platform key", key, setKey, 'password']]} onSubmit={() => { setError(''); if (!key.trim()) return setError('La platform key es obligatoria.'); }} error={error} />;
 }
