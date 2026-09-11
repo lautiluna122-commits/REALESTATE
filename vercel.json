@@ -4,7 +4,12 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/proyecto/:slug", "destination": "/index.html" },
-    { "source": "/proyecto/:slug/", "destination": "/index.html" }
+    { "source": "/proyecto/:slug/", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/admin/:path*", "destination": "/index.html" },
+    { "source": "/platform", "destination": "/index.html" },
+    { "source": "/platform/:path*", "destination": "/index.html" }
   ]
 }
