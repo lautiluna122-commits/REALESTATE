@@ -25,7 +25,7 @@ function waitForServer(child) {
   });
 }
 
-test('POST /projects/:projectId/leads guarda correctamente el lead', async () => {
+test('POST /api/projects/:projectId/leads guarda correctamente el lead', async () => {
   fs.rmSync(dataPath, { force: true });
   const child = spawn(process.execPath, ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, NODE_ENV: 'development', PORT: String(port) }, stdio: 'ignore' });
   try {
@@ -50,7 +50,7 @@ test('POST /projects/:projectId/leads guarda correctamente el lead', async () =>
     assert.equal(publishResponse.status, 200);
 
     const leadPayload = { name: 'Ana Pérez', email: 'ana@example.com', phone: '+598 99 123 456' };
-    const leadResponse = await fetch(`${baseUrl}/projects/${project.id}/leads`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(leadPayload) });
+    const leadResponse = await fetch(`${baseUrl}/api/projects/${project.id}/leads`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(leadPayload) });
     assert.equal(leadResponse.status, 201);
     const lead = await leadResponse.json();
     assert.equal(lead.name, leadPayload.name);
