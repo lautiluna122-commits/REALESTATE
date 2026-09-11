@@ -1,9 +1,9 @@
 // Base API configuration
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Helper para hacer requests
 async function request(endpoint, options = {}) {
-  const url = `${API_BASE}${endpoint}`;
+  const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
