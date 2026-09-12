@@ -7,7 +7,7 @@ const secretKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"
 if (!supabaseUrl || !secretKey) throw new Error("Supabase secret key is not configured");
 const db = createClient(supabaseUrl, secretKey);
 
-const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-api-key, x-platform-key, content-type", "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS" } });
+const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-api-key, x-platform-key, x-share-token, content-type", "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS" } });
 const err = (e: any, status = 400) => json({ message: e?.message || "Request failed" }, e?.status || status);
 const id = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
@@ -22,8 +22,13 @@ const pub = (r: any) => r && ({ ...r, projectId: r.projectid, publicSlug: r.publ
 
 async function q(table: string, params: any = {}) { const { data, error } = await db.from(table).select(params.select || "*").match(params.match || {}).order(params.order || "createdat.asc"); if (error) throw error; return data || []; }
 async function getProject(pid: string) { const { data, error } = await db.from("projects").select("*").eq("id", pid).maybeSingle(); if (error) throw error; return project(data); }
+async function accessByToken(token: string) { if (!token) return null; const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token)); const tokenhash = Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join(""); const { data, error } = await db.from("project_access_links").select("*").eq("tokenhash", tokenhash).eq("status","ACTIVE").maybeSingle(); if(error) throw error; if(!data || (data.expiresat && new Date(data.expiresat) <= new Date())) return null; await db.from("project_access_links").update({lastusedat:now()}).eq("id",data.id); return data; }
 async function companyByKey(key: string) { if (!key) return null; const { data, error } = await db.from("companies").select("id,name,slug,status,createdat,apikey").eq("apikey", key).maybeSingle(); if (error) throw error; return data; }
-async function ownProject(req: Request, pid: string) { const key = req.headers.get("x-api-key"); if (!key) throw Object.assign(new Error("x-api-key header required"), { status: 401 }); const c = await companyByKey(key); if (!c || c.status !== "ACTIVE") throw Object.assign(new Error("invalid api key"), { status: 401 }); const p = await getProject(pid); if (!p) throw Object.assign(new Error("Project not found"), { status: 404 }); if (String(p.companyId) !== String(c.id)) throw Object.assign(new Error("project access denied"), { status: 403 }); return { c, p }; }
+async function ownProject(req: Request, pid: string) {
+  const share = await accessByToken(req.headers.get("x-share-token") || "");
+  if (share) { if(String(share.projectid)!==String(pid)) throw Object.assign(new Error("share link is scoped to another project"),{status:403}); const p=await getProject(pid); if(!p || String(p.companyId)!==String(share.companyid)) throw Object.assign(new Error("project access denied"),{status:403}); return { c:{id:share.companyid,name:"Shared workspace",slug:"shared",status:"ACTIVE"}, p, share }; }
+  const key = req.headers.get("x-api-key"); if (!key) throw Object.assign(new Error("x-api-key header required"), { status: 401 }); const c = await companyByKey(key); if (!c || c.status !== "ACTIVE") throw Object.assign(new Error("invalid api key"), { status: 401 }); const p = await getProject(pid); if (!p) throw Object.assign(new Error("Project not found"), { status: 404 }); if (String(p.companyId) !== String(c.id)) throw Object.assign(new Error("project access denied"), { status: 403 }); return { c, p };
+}
 async function platformAuth(req: Request) { const configured = Deno.env.get("PLATFORM_API_KEY") || secretKeys.platform || ""; const supplied = req.headers.get("x-platform-key") || ""; if (!configured || !supplied || supplied !== configured) throw Object.assign(new Error("invalid platform key"), { status: 401 }); }
 async function parse(req: Request) { try { return await req.json(); } catch { return {}; } }
 
@@ -39,6 +44,13 @@ Deno.serve(async (req) => {
     if (path[0] === "platform") {
       await platformAuth(req);
       if (path[1] === "companies" && path[2] && path[3] === "projects" && method === "GET") return json((await q("projects", { match: { companyid: path[2] } })).map(project));
+      if (path[1] === "projects" && path[2] && path[3] === "access-link") {
+        if (share) return json({ active:true, role:share.role, permissions:share.permissions },200);
+        const pid=path[2]; const own=await ownProject(req,pid);
+        if(method==="POST"){ const token=crypto.randomUUID().replaceAll("-","")+crypto.randomUUID().replaceAll("-",""); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); const tokenhash=Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join(""); await db.from("project_access_links").update({status:"REVOKED"}).eq("projectid",pid).eq("status","ACTIVE"); const body=await parse(req); const {data,error}=await db.from("project_access_links").insert({id:id(),companyid:own.c.id,projectid:pid,tokenhash,label:String(body.label||"Cliente"),role:"CLIENT_EDITOR",permissions:body.permissions||{editProject:false,editInventory:true,editContent:true,publish:false},status:"ACTIVE",createdat:now()}).select().single(); if(error)throw error; return json({id:data.id,projectId:pid,label:data.label,role:data.role,permissions:data.permissions,token},201);}
+        if(method==="DELETE"){await db.from("project_access_links").update({status:"REVOKED"}).eq("projectid",pid).eq("companyid",own.c.id).eq("status","ACTIVE");return json({active:false});}
+        return json({message:"Method not allowed"},405);
+      }
       if (path[1] === "projects" && path[2]) { const pid = path[2]; if (path[3] === "units" && method === "GET") return json((await q("units", { match: { projectid: pid } })).map(unit)); if (path[3] === "leads" && method === "GET") return json(await q("leads", { match: { projectid: pid }, order: "createdat.desc" })); const p = await getProject(pid); return p ? json(p) : json({ message: "Project not found" }, 404); }
       return json({ message: "Not found" }, 404);
     }
@@ -64,7 +76,12 @@ Deno.serve(async (req) => {
     }
 
     if (path[0] === "admin" || path[0] === "company") {
-      const key = req.headers.get("x-api-key"); if (!key) return json({ message: "x-api-key header required" }, 401); const c = await companyByKey(key); if (!c || c.status !== "ACTIVE") return json({ message: "invalid api key" }, 401); if (path[1] === "me") return json({ id: c.id, name: c.name, slug: c.slug, status: c.status });
+      const share = await accessByToken(req.headers.get("x-share-token") || "");
+      const key = req.headers.get("x-api-key");
+      const c = share ? {id:share.companyid,name:"Shared workspace",slug:"shared",status:"ACTIVE"} : await companyByKey(key || "");
+      if (!c || c.status !== "ACTIVE") return json({ message: share ? "invalid or expired share link" : "invalid api key" }, 401);
+      if (path[1] === "me") return json({ id: c.id, name: c.name, slug: c.slug, status: c.status, projectId: share?.projectid || null, shareRole: share?.role || null, permissions: share?.permissions || null });
+      if (share && path[1] === "projects" && !path[2]) return json({ message: "share links cannot manage projects" }, 403);
       if (path[1] === "projects" && !path[2] && method === "POST") { const body = await parse(req); const name = String(body.name || "").trim(); const slug = slugify(body.slug || name); if (name.length < 2 || name.length > 160) return json({ message: "project name is required" }, 400); if (!slug) return json({ message: "project slug is required" }, 400); const { data: duplicate } = await db.from("projects").select("id").eq("slug", slug).maybeSingle(); if (duplicate) return json({ message: "project slug already exists" }, 409); const { data, error } = await db.from("projects").insert({ id: id(), companyid: c.id, name, slug, description: String(body.description || "").slice(0, 4000), status: "DRAFT", location: body.location || null, branding: body.branding || null, buildingreference: String(body.buildingReference || ""), environmentconfig: body.environmentConfig || {}, publicationconfig: body.publicationConfig || {}, createdat: now() }).select().single(); if (error) throw error; return json(project(data), 201); }
       if (path[1] === "companies" && path[2] && path[3] === "projects") { if (String(path[2]) !== String(c.id)) return json({ message: "company mismatch" }, 403); return json((await q("projects", { match: { companyid: c.id } })).map(project)); }
       if (path[1] === "projects" && path[2]) {
