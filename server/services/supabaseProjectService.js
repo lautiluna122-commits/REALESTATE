@@ -110,3 +110,24 @@ export async function createLead({name,email,phone=null,message='',projectId,uni
   const row=one(await insert('leads',[{id:id(),name,email,phone,projectid:projectId,unitid:unitId,message,createdat:now()}]));return row;
 }
 export async function ensureCompanyAccess(requestedCompanyId,targetCompanyId){return String(requestedCompanyId)===String(targetCompanyId);}
+
+export async function createProjectAccessLink({companyId,projectId,label='Cliente',role='CLIENT_EDITOR',permissions}) {
+  const project=await getProjectById(projectId);
+  if(!project || String(project.companyId)!==String(companyId)) throw new Error('Project access denied');
+  const token=crypto.randomBytes(32).toString('base64url');
+  const tokenhash=crypto.createHash('sha256').update(token).digest('hex');
+  const rows=await select('project_access_links',{projectid:`eq.${projectId}`,status:'eq.ACTIVE',select:'id',limit:'1'});
+  if(rows.length) await update('project_access_links',{projectid:`eq.${projectId}`,status:'eq.ACTIVE`},{status:'REVOKED'});
+  const row=one(await insert('project_access_links',[{id:id(),companyid:companyId,projectid:projectId,tokenhash,label,role,permissions:permissions||{editProject:false,editInventory:true,editContent:true,publish:false},status:'ACTIVE',createdat:now()}]));
+  return {id:row.id,projectId,companyId,label,role,permissions:row.permissions,token};
+}
+export async function getProjectAccessLinkByToken(token){
+  if(!token)return null;
+  const tokenhash=crypto.createHash('sha256').update(token).digest('hex');
+  const row=one(await select('project_access_links',{tokenhash:`eq.${tokenhash}`,status:'eq.ACTIVE',select:'*',limit:'1'}));
+  if(!row)return null;
+  if(row.expiresat && new Date(row.expiresat)<=new Date()) return null;
+  await update('project_access_links',{id:`eq.${row.id}`},{lastusedat:now()});
+  return {id:row.id,companyId:row.companyid,projectId:row.projectid,label:row.label,role:row.role,permissions:row.permissions||{}};
+}
+export async function revokeProjectAccessLink(projectId,companyId){return one(await update('project_access_links',{projectid:`eq.${projectId}`,companyid:`eq.${companyId}`,status:'eq.ACTIVE'},{status:'REVOKED'}));}
