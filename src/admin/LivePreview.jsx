@@ -6,10 +6,12 @@ const ASSET_API = import.meta.env.VITE_ASSET_API_BASE_URL || `${import.meta.env.
 
 export default function LivePreview({ project, data, apiKey = '', authHeader = 'x-api-key' }) {
   const [heroImageUrl, setHeroImageUrl] = useState('');
+  const [ready, setReady] = useState(false);
   const headers = useMemo(() => ({ [authHeader]: apiKey }), [apiKey, authHeader]);
 
   useEffect(() => {
     let cancelled = false;
+    setReady(false);
     hydratePublishedProject({
       project,
       publication: data.publication,
@@ -21,6 +23,8 @@ export default function LivePreview({ project, data, apiKey = '', authHeader = '
       assets: data.assets,
       location: data.location,
     });
+
+    setReady(true);
 
     const primary = (data.assets || []).find((asset) => asset.kind === 'image' && asset.isprimary);
     const fallback = (data.assets || []).find((asset) => asset.kind === 'image');
@@ -37,7 +41,9 @@ export default function LivePreview({ project, data, apiKey = '', authHeader = '
       setHeroImageUrl('');
     }
 
-    return () => { cancelled = true; };
+    if (!ready) return <div className="platformPlaceholder"><span>LIVE PROJECT VIEW</span><h2>Preparando experiencia…</h2></div>;
+
+  return () => { cancelled = true; setReady(false); };
   }, [project, data, apiKey, authHeader, headers]);
 
   return (
