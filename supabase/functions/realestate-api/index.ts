@@ -45,7 +45,6 @@ Deno.serve(async (req) => {
       await platformAuth(req);
       if (path[1] === "companies" && path[2] && path[3] === "projects" && method === "GET") return json((await q("projects", { match: { companyid: path[2] } })).map(project));
       if (path[1] === "projects" && path[2] && path[3] === "access-link") {
-        if (share) return json({ active:true, role:share.role, permissions:share.permissions },200);
         const pid=path[2]; const own=await ownProject(req,pid);
         if(method==="POST"){ const token=crypto.randomUUID().replaceAll("-","")+crypto.randomUUID().replaceAll("-",""); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); const tokenhash=Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join(""); await db.from("project_access_links").update({status:"REVOKED"}).eq("projectid",pid).eq("status","ACTIVE"); const body=await parse(req); const {data,error}=await db.from("project_access_links").insert({id:id(),companyid:own.c.id,projectid:pid,tokenhash,label:String(body.label||"Cliente"),role:"CLIENT_EDITOR",permissions:body.permissions||{editProject:false,editInventory:true,editContent:true,publish:false},status:"ACTIVE",createdat:now()}).select().single(); if(error)throw error; return json({id:data.id,projectId:pid,label:data.label,role:data.role,permissions:data.permissions,token},201);}
         if(method==="DELETE"){await db.from("project_access_links").update({status:"REVOKED"}).eq("projectid",pid).eq("companyid",own.c.id).eq("status","ACTIVE");return json({active:false});}
