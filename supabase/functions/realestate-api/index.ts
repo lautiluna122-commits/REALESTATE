@@ -62,7 +62,29 @@ Deno.serve(async (req) => {
     if (path[0] === "platform") {
       await platformAuth(req);
       if (path[1] === "companies" && path[2] && path[3] === "projects" && method === "GET") return json((await q("projects", { match: { companyid: path[2] } })).map(project));
-      if (path[1] === "projects" && path[2]) { const pid = path[2]; if (path[3] === "units" && method === "GET") return json((await q("units", { match: { projectid: pid } })).map(unit)); if (path[3] === "leads" && method === "GET") return json(await q("leads", { match: { projectid: pid }, order: "createdat.desc" })); const p = await getProject(pid); return p ? json(p) : json({ message: "Project not found" }, 404); }
+      if (path[1] === "projects" && path[2]) {
+        const pid = path[2];
+        if (path[3] === "full" && method === "GET") {
+          const p = await getProject(pid);
+          if (!p) return json({ message: "Project not found" }, 404);
+          const [buildings, floors, units, plans, amenities, assets, locations, publications, leads] = await Promise.all([
+            q("buildings", { match: { projectid: pid } }),
+            q("floors", { match: { projectid: pid } }),
+            q("units", { match: { projectid: pid } }),
+            q("plans", { match: { projectid: pid } }),
+            q("amenities", { match: { projectid: pid } }),
+            q("assets", { match: { projectid: pid } }),
+            q("locations", { match: { projectid: pid } }),
+            q("project_publications", { match: { projectid: pid } }),
+            q("leads", { match: { projectid: pid }, order: "createdat.desc" }),
+          ]);
+          return json({ project: p, buildings, floors, units: units.map(unit), plans, amenities, assets, location: locations[0] || null, publication: publications[0] ? pub(publications[0]) : null, leads });
+        }
+        if (path[3] === "units" && method === "GET") return json((await q("units", { match: { projectid: pid } })).map(unit));
+        if (path[3] === "leads" && method === "GET") return json(await q("leads", { match: { projectid: pid }, order: "createdat.desc" }));
+        const p = await getProject(pid);
+        return p ? json(p) : json({ message: "Project not found" }, 404);
+      }
       return json({ message: "Not found" }, 404);
     }
 
