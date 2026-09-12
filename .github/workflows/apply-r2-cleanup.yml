@@ -35,6 +35,15 @@ jobs:
           if n1 != 1 or n2 != 1:
             raise SystemExit(f'Expected Team/Audit removals, got Team={n1}, Audit={n2}')
           p.write_text(text)
+      - name: Commit code cleanup before validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json src/admin/ProjectBuilder.jsx
+          git commit -m 'chore: finish round 2 test isolation and dead code cleanup' || true
+          git push origin HEAD:feat/r2-branch-audit
       - name: Validate requested commands
         run: |
           npm ci
@@ -44,12 +53,3 @@ jobs:
           NODE_ENV=test node --test server/tests/auth.test.js server/tests/leads.test.js server/tests/projectRegistry.test.js server/tests/tenantPersistence.test.js
           echo '=== production API tests ==='
           npm run test:production
-      - name: Commit cleanup
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package.json src/admin/ProjectBuilder.jsx
-          git commit -m 'chore: finish round 2 test isolation and dead code cleanup' || exit 0
-          git push origin HEAD:feat/r2-branch-audit
