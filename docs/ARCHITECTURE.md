@@ -1,34 +1,55 @@
-# Architecture
+# REALESTATE — Arquitectura actual
 
-## Current system
+## Producto
 
-```text
-React/Vite showroom prototype
-  ├─ src/data/projects/oceanMansions.js
-  ├─ src/platform/projectRegistry.js
-  └─ src/App.jsx (React Three Fiber scene + UI)
+REALESTATE es una plataforma multiempresa para constructoras/desarrolladoras. Tiene tres superficies principales:
 
-Express API
-  ├─ server/index.js (HTTP routes)
-  ├─ server/services/projectService.js (business/data rules)
-  └─ server/db.js (SQLite schema, connection, seed)
-```
+1. **Platform Owner** (`/platform`): visión global de empresas y proyectos.
+2. **Company Workspace** (`/admin`, `/workspace`, `/cliente/:token`): administración de proyectos, inventario, contenido, publicación y acceso privado.
+3. **Public Showroom** (`/proyecto/:slug`): experiencia comercial pública del proyecto.
 
-The frontend and backend currently contain overlapping domain representations. The backend is the persistence layer intended to become canonical; the frontend still obtains the rendered project from local demo modules. They are not integrated by HTTP yet.
+## Producción
 
-## Backend route boundary
-- `/api/admin/*`: intended platform management surface; currently unauthenticated.
-- `/api/company/:companyId/*`: tenant-oriented read surface; currently trusts the URL identity.
-- `/api/public/*`: published, read-only project discovery/resolution.
-- Legacy `/api/*`: compatibility routes; currently duplicate several operations and are unauthenticated.
+El flujo principal es:
 
-## Intended target direction
-A future authenticated request should establish an actor once, then authorization should derive tenant and role from that actor. Services and queries must scope access by the authorized tenant rather than accepting a tenant identifier as proof. Public resolution should use a dedicated publication lookup and return an intentionally public projection.
+`Browser → Vercel → api/[...path].js → Supabase Edge Function realestate-api → Supabase Postgres`
 
-The renderer should receive a stable project/experience DTO produced from the same canonical project data. It must not require duplicated, hand-maintained project facts.
+El proxy de Vercel utiliza una única Edge Function para el API principal. Las operaciones de unidades, incluido el acceso mediante `x-share-token`, ya no se envían a una función separada.
 
-## Architectural decisions recorded
-- Keep the existing React/Vite, Express, SQLite, and Three.js stack for this phase.
-- Preserve publication as a separate entity from a project.
-- Do not merge demo frontend data into the backend or introduce authentication during this documentation task.
-- Treat removal or migration of legacy routes as a future, deliberate compatibility decision.
+Assets y procesamiento asistido por IA utilizan sus Edge Functions especializadas.
+
+## Autorización
+
+- `x-platform-key`: operaciones globales del Platform Owner.
+- `x-api-key`: operaciones de una constructora.
+- `x-share-token`: acceso privado limitado a un proyecto y a los permisos incluidos en el enlace.
+
+La autorización de proyecto siempre valida el tenant/proyecto correspondiente antes de leer o modificar datos.
+
+## Modelo principal
+
+`Company → Project → Building → Floor → Unit`
+
+A esta jerarquía se conectan:
+
+`Location`, `Plans`, `Amenities`, `Assets`, `Publication`, `Experience`, `Project Access Links`, `Leads` y `Content Ingestion Jobs`.
+
+## Fuente de verdad
+
+Supabase Postgres es la fuente de verdad para producción. El panel administrativo escribe mediante `realestate-api` y el showroom público consume el proyecto publicado desde la misma base de datos.
+
+Un cambio comercial, como el precio o estado de una unidad, no debe duplicarse en el frontend del showroom.
+
+## Desarrollo local
+
+El repositorio mantiene partes de Express/SQLite para desarrollo y tests locales de compatibilidad. Esto no representa el runtime de producción.
+
+Los tests de contrato de producción consultan la Edge Function real.
+
+## Code splitting
+
+`src/App.jsx` carga de forma diferida el panel administrativo y el showroom público para evitar que cada superficie cargue innecesariamente el código de la otra.
+
+## Flujo de cambios
+
+Los cambios nuevos se trabajan en ramas de feature/fix/chore, se validan y luego se integran a `main` mediante PR. Ver `docs/BRANCHING.md`.
