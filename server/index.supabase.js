@@ -4,7 +4,7 @@ import {
   listCompanies,createCompany,getCompanyByApiKey,listProjectsByCompany,createProject,getProjectById,getPublishedProjectByPublicSlug,listPublicProjects,updateProject,
   createBuilding,listProjectBuildings,createFloor,listProjectFloors,createUnit,listProjectUnits,getUnitById,updateUnit,createPlan,listProjectPlans,
   createAmenity,listProjectAmenities,createAsset,listProjectAssets,createLocation,getProjectLocation,getPublication,createProjectPublication,updatePublication,
-  publishProject,unpublishProject,listProjectLeads,createLead,ensureCompanyAccess,
+  publishProject,unpublishProject,listProjectLeads,createLead,ensureCompanyAccess,createProjectAccessLink,getProjectAccessLinkByToken,revokeProjectAccessLink,
 } from './services/supabaseProjectService.js';
 import { getPublishedShowroomBySlug } from './services/supabasePublicShowroomService.js';
 
@@ -15,7 +15,23 @@ app.use(cors({origin:(origin,cb)=>{if(!origin||allowedOrigins.length===0||allowe
 app.use(express.json({limit:'5mb'}));
 
 const fail=(res,e,defaultStatus=400)=>res.status(e?.status||defaultStatus).json({message:e?.message||'Request failed'});
-async function requireApiKey(req,res,next){try{const key=req.header('x-api-key');if(!key)return res.status(401).json({message:'x-api-key header required'});const company=await getCompanyByApiKey(key);if(!company)return res.status(401).json({message:'invalid api key'});req.company=company;next();}catch(e){fail(res,e,500);}}
+async function requireApiKey(req,res,next){try{
+  const key=req.header('x-api-key');
+  const share=req.header('x-share-token');
+  if(share){
+    const access=await getProjectAccessLinkByToken(share);
+    if(!access)return res.status(401).json({message:'invalid or expired share link'});
+    const project=await getProjectById(access.projectId);
+    if(!project||String(project.companyId)!==String(access.companyId))return res.status(403).json({message:'share project access denied'});
+    req.company={id:access.companyId,name:project.name,slug:'shared',status:'ACTIVE'};
+    req.share=access;
+    return next();
+  }
+  if(!key)return res.status(401).json({message:'x-api-key header required'});
+  const company=await getCompanyByApiKey(key);
+  if(!company)return res.status(401).json({message:'invalid api key'});
+  req.company=company; next();
+}catch(e){fail(res,e,500);}}
 function requirePlatformKey(req,res,next){const configured=process.env.PLATFORM_API_KEY;if(!configured)return res.status(503).json({message:'platform access is not configured'});if(req.header('x-platform-key')!==configured)return res.status(401).json({message:'invalid platform key'});req.authScope='platform';next();}
 async function requireOwnCompany(req,res,next){if(!req.company||String(req.company.id)!==String(req.params.companyId))return res.status(403).json({message:'company mismatch'});next();}
 async function requireOwnProject(req,res,next){try{const p=await getProjectById(req.params.projectId);if(!p)return res.status(404).json({message:'Project not found'});if(!req.company||String(p.companyId)!==String(req.company.id))return res.status(403).json({message:'project access denied'});req.project=p;next();}catch(e){fail(res,e,500);}}
@@ -24,6 +40,7 @@ app.get('/api/health',(_req,res)=>res.json({status:'ok',service:'real-estate-pla
 app.get('/api/admin/companies',requirePlatformKey,async(_req,res)=>{try{res.json(await listCompanies());}catch(e){fail(res,e,500);}});
 app.post('/api/admin/companies',requirePlatformKey,async(req,res)=>{try{const {name,slug}=req.body||{};if(!name||!slug)return res.status(400).json({message:'name and slug are required'});res.status(201).json(await createCompany({name,slug}));}catch(e){fail(res,e);}});
 app.use('/api/admin',requireApiKey);
+app.use('/api/admin/projects/:projectId', (req,res,next)=>{ if(req.share && String(req.share.projectId)!==String(req.params.projectId)) return res.status(403).json({message:'share link is scoped to another project'}); next(); });
 app.get('/api/admin/me',(req,res)=>res.json({id:req.company.id,name:req.company.name,slug:req.company.slug,status:req.company.status}));
 app.get('/api/admin/companies/:companyId/projects',requireOwnCompany,async(req,res)=>{try{res.json(await listProjectsByCompany(req.params.companyId));}catch(e){fail(res,e,500);}});
 app.post('/api/admin/projects',async(req,res)=>{try{const payload=req.body||{};if(String(payload.companyId)!==String(req.company.id))return res.status(403).json({message:'company mismatch'});res.status(201).json(await createProject(payload));}catch(e){fail(res,e);}});
@@ -53,6 +70,9 @@ app.post('/api/admin/projects/:projectId/publication',async(req,res)=>{try{res.s
 app.patch('/api/admin/projects/:projectId/publication',async(req,res)=>{try{const current=await getPublication(req.params.projectId);if(!current)return res.status(404).json({message:'Publication not configured'});const allowed=['publicSlug','publicUrl','title','description','thumbnail','buttonText','customDomain'];const entries=Object.fromEntries(Object.entries(req.body||{}).filter(([k])=>allowed.includes(k)));if(entries.publicSlug&&entries.publicSlug!==current.publicSlug){const publicProject=await getPublishedProjectByPublicSlug(entries.publicSlug);if(publicProject&&publicProject.project.id!==req.params.projectId)return res.status(409).json({message:'public slug already in use'});}res.json(await updatePublication(req.params.projectId,entries));}catch(e){fail(res,e);}});
 app.post('/api/admin/projects/:projectId/publish',async(req,res)=>{try{res.json(await publishProject(req.params.projectId,req.body||{}));}catch(e){fail(res,e);}});
 app.post('/api/admin/projects/:projectId/unpublish',async(req,res)=>{try{const pub=await getPublication(req.params.projectId);if(!pub)return res.status(404).json({message:'Publication not configured'});res.json(await unpublishProject(req.params.projectId));}catch(e){fail(res,e);}});
+app.post('/api/admin/projects/:projectId/access-link',async(req,res)=>{try{if(req.share)return res.status(403).json({message:'share links cannot create share links'});res.status(201).json(await createProjectAccessLink({companyId:req.company.id,projectId:req.params.projectId,label:req.body?.label||'Cliente',permissions:req.body?.permissions}));}catch(e){fail(res,e);}});
+app.get('/api/admin/projects/:projectId/access-link',async(req,res)=>{try{const link=await getProjectAccessLinkByToken(req.header('x-share-token')||''); if(req.share)return res.json({active:true,role:req.share.role,permissions:req.share.permissions}); res.json({active:false});}catch(e){fail(res,e);}});
+app.delete('/api/admin/projects/:projectId/access-link',async(req,res)=>{try{if(req.share)return res.status(403).json({message:'share links cannot revoke access'});res.json(await revokeProjectAccessLink(req.params.projectId,req.company.id));}catch(e){fail(res,e);}});
 app.get('/api/admin/projects/:projectId/leads',async(req,res)=>{try{res.json(await listProjectLeads(req.params.projectId));}catch(e){fail(res,e,500);}});
 
 app.use('/api/company',requireApiKey);
