@@ -2,7 +2,7 @@ name: Validate showroom
 
 on:
   push:
-    branches: [main, feat/finalize-platform-mvp]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -18,5 +18,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: NODE_ENV=test node --test --test-concurrency=1 server/tests/*.test.js
+      - run: npm run test:api
       - run: npm run test:production
