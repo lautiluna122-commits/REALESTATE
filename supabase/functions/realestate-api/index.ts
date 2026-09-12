@@ -86,6 +86,10 @@ Deno.serve(async (req) => {
       if (path[1] === "companies" && path[2] && path[3] === "projects") { if (String(path[2]) !== String(c.id)) return json({ message: "company mismatch" }, 403); return json((await q("projects", { match: { companyid: c.id } })).map(project)); }
       if (path[1] === "projects" && path[2]) {
         const pid = path[2]; const own = await ownProject(req, pid); const rest = path.slice(3); const resource = rest[0];
+        if (own.share && method !== "GET") {
+          const allowed = (!resource && method === "PATCH") || (resource === "units" && rest[1] && method === "PATCH");
+          if (!allowed) return json({ message: "This client link only permits project content and unit commercial edits" }, 403);
+        }
         if (!resource && method === "GET") return json(own.p);
         if (!resource && method === "PATCH") { const body = await parse(req); const allowed = ["name", "slug", "description", "status", "location", "branding", "buildingReference", "environmentConfig", "publicationConfig"]; const values: Record<string, unknown> = {}; const mapping: Record<string, string> = { buildingReference: "buildingreference", environmentConfig: "environmentconfig", publicationConfig: "publicationconfig" }; for (const k of allowed) if (k in body) values[mapping[k] || k] = body[k]; if ("status" in values && !["DRAFT", "PUBLISHED"].includes(String(values.status))) return json({ message: "Invalid project status" }, 400); if ("slug" in values) values.slug = slugify(values.slug); const { data, error } = await db.from("projects").update(values).eq("id", pid).eq("companyid", c.id).select().single(); if (error) throw error; return json(project(data)); }
 
