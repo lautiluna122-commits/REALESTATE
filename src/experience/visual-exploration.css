@@ -1,0 +1,21 @@
+/* Visual exploration — Punta del Este showroom */
+.stableShowroom{background:#f5f1e9}
+.stableHero{background:linear-gradient(145deg,#a9c9cb 0%,#6d969b 48%,#183b42 100%)}
+.stableAtmosphere{background:radial-gradient(circle at 74% 22%,rgba(255,255,255,.32),transparent 24%),linear-gradient(90deg,rgba(4,15,18,.9),rgba(4,15,18,.42) 32%,rgba(4,15,18,.08) 72%,transparent),linear-gradient(0deg,rgba(2,9,11,.82),transparent 46%)}
+.stableNav{height:88px;background:linear-gradient(180deg,rgba(4,13,15,.26),transparent);backdrop-filter:blur(12px)}
+.stableBrand>span{border-radius:50%;font-family:'Playfair Display',serif;font-size:13px}
+.stableCopy{top:24%;max-width:720px}
+.stableCopy h1{font-size:clamp(82px,10vw,164px);text-shadow:0 12px 40px rgba(0,0,0,.14)}
+.stableCopy>p:not(.stableEyebrow){max-width:510px;font-size:14px;color:rgba(255,255,255,.82)}
+.stableButtons a{border-radius:1px;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+.stableCard{border-radius:2px;background:rgba(10,24,27,.78);box-shadow:0 28px 90px rgba(0,0,0,.28)}
+.stableStats{padding:13px 18px;border:1px solid rgba(255,255,255,.14);background:rgba(8,21,24,.2);backdrop-filter:blur(12px);gap:30px}
+.stableStats b{font-size:28px}
+.introVisual{background:radial-gradient(circle at 50% 10%,#dbe8e5 0,#a9c1bd 35%,#658287 100%);box-shadow:0 35px 100px rgba(25,37,37,.18)}
+.visualTower{width:190px;height:370px;background:linear-gradient(90deg,rgba(238,233,224,.9),rgba(168,190,187,.74),rgba(224,217,205,.88));box-shadow:28px 30px 70px rgba(18,31,32,.26)}
+.unitGrid{border-radius:2px;overflow:hidden}
+.unitGrid button{min-height:185px}
+.unitGrid button.selected{background:#d5e4e1}
+.experience{background:linear-gradient(120deg,#102225,#19383d)}
+.experiencePanel{padding:28px 30px;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.025);backdrop-filter:blur(10px)}
+@media(max-width:600px){.stableStats{padding:8px 10px;gap:10px}.stableStats b{font-size:19px}.stableCopy h1{font-size:66px}.experiencePanel{padding:20px}}
