@@ -4,6 +4,7 @@ import LeadCapture from './experience/LeadCapture';
 import AdminPortal from './admin/AdminPortal';
 import { hydratePublishedProject } from './platform/projectRegistry';
 import './experience/showroom-premium.css';
+import './experience/visual-exploration.css';
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api';
 
