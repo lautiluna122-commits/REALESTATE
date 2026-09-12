@@ -27,3 +27,5 @@ jobs:
           test "$(curl -fsS "$API_BASE/health" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).status')" = "ok"
           test "$(curl -fsS "$API_BASE/public/projects/ocean-mansions" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).project.slug')" = "ocean-mansions"
           test "$(curl -sS -o /dev/null -w '%{http_code}' "$API_BASE/admin/me")" = "401"
+
+# API smoke rerun after Edge Function v10 deployment
