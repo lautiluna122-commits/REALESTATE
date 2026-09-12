@@ -2,7 +2,7 @@ name: Validate showroom
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/finalize-platform-mvp]
   pull_request:
     branches: [main]
 
