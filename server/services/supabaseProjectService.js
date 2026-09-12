@@ -117,7 +117,7 @@ export async function createProjectAccessLink({companyId,projectId,label='Client
   const token=crypto.randomBytes(32).toString('base64url');
   const tokenhash=crypto.createHash('sha256').update(token).digest('hex');
   const rows=await select('project_access_links',{projectid:`eq.${projectId}`,status:'eq.ACTIVE',select:'id',limit:'1'});
-  if(rows.length) await update('project_access_links',{projectid:`eq.${projectId}`,status:'eq.ACTIVE`},{status:'REVOKED'});
+  if(rows.length) await update('project_access_links',{projectid:`eq.${projectId}`,status:'eq.ACTIVE'},{status:'REVOKED'});
   const row=one(await insert('project_access_links',[{id:id(),companyid:companyId,projectid:projectId,tokenhash,label,role,permissions:permissions||{editProject:false,editInventory:true,editContent:true,publish:false},status:'ACTIVE',createdat:now()}]));
   return {id:row.id,projectId,companyId,label,role,permissions:row.permissions,token};
 }
