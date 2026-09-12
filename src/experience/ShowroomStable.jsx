@@ -1,8 +1,10 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getProjectById, getProjectUnits } from '../platform/projectRegistry';
 import { STATUS_LABELS, UNIT_STATUS } from '../domain/platformModels';
+
+const ASSET_API = import.meta.env.VITE_ASSET_API_BASE_URL || `${import.meta.env.VITE_SUPABASE_URL || ''}/functions/v1/realestate-assets`;
 
 const statusLabel = (status) => STATUS_LABELS[status] ?? status ?? 'Disponible';
 
@@ -89,7 +91,7 @@ function Scene({ units, floorNumbers, selected, onSelect, night }) {
   );
 }
 
-export default function ShowroomStable({ projectId = 'ocean-mansions' }) {
+export default function ShowroomStable({ projectId = 'ocean-mansions', heroImageUrl = '' }) {
   const project = getProjectById(projectId);
   const units = useMemo(() => getProjectUnits(projectId), [projectId]);
   const floorNumbers = useMemo(() => [...new Set(units.map((unit) => Number(unit.floor)).filter(Number.isFinite))].sort((a, b) => a - b), [units]);
@@ -97,15 +99,31 @@ export default function ShowroomStable({ projectId = 'ocean-mansions' }) {
   const [night, setNight] = useState(false);
   const [floor, setFloor] = useState('Todos');
   const [activeExperience, setActiveExperience] = useState('3D interactivo');
+  const [remoteHeroImage, setRemoteHeroImage] = useState('');
+
+  useEffect(() => {
+    if (heroImageUrl || project?.status !== 'PUBLISHED') {
+      setRemoteHeroImage('');
+      return;
+    }
+    let cancelled = false;
+    fetch(`${ASSET_API}/public/projects/${projectId}/hero`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((payload) => { if (!cancelled) setRemoteHeroImage(payload?.url || ''); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [heroImageUrl, project?.status, projectId]);
   const filtered = floor === 'Todos' ? units : units.filter((unit) => String(unit.floor) === floor);
   const available = units.filter((u) => u.status === UNIT_STATUS.AVAILABLE).length;
   const buildingHeight = floorNumbers.length;
+  const resolvedHeroImage = heroImageUrl || remoteHeroImage;
 
   if (!project) return null;
 
   return (
     <main className={`stableShowroom ${night ? 'isNight' : ''}`}>
-      <section className="stableHero">
+      <section className={`stableHero ${resolvedHeroImage ? 'hasHeroImage' : ''}`}>
+        {resolvedHeroImage && <div className="stableHeroImage" style={{ backgroundImage: `url("${resolvedHeroImage}")` }} aria-label={`${project.name} render`} />}
         <div className="stableCanvas"><Scene units={units} floorNumbers={floorNumbers} selected={selected} onSelect={setSelected} night={night} /></div>
         <div className="stableAtmosphere" />
         <header className="stableNav">
