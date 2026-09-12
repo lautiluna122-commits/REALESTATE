@@ -1,36 +1,31 @@
-# Data Model
+# REALESTATE — Modelo de datos actual
 
-## Canonical hierarchy
+## Jerarquía
 
-```text
-Company
-└── Project
-    └── Building
-        └── Floor
-            └── Unit
+`companies → projects → buildings → floors → units`
 
-Project resources: Plan, Asset, Amenity, Location, ProjectPublication
-```
+Cada registro de proyecto pertenece a una compañía y los recursos de estructura se escopan por proyecto.
 
-## Persisted entities
-SQLite currently defines:
-- **companies**: identity, name, slug, status, creation time.
-- **users**: company association, identity fields, role and status. The table is reserved for future identity/authorization work and is not used by the request flow today.
-- **projects**: tenant-owned project data and JSON configuration fields.
-- **buildings**, **floors**, **units**: inventory hierarchy.
-- **plans**, **assets**, **amenities**, **locations**: project resources.
-- **project_publications**: one publication record per project, including public slug, URL, status, and visibility.
+## Recursos complementarios
 
-## Integrity currently enforced
-- A project slug is unique per company.
-- Floors must use a building that belongs to their project.
-- Units must use a building and floor that belong to their project.
-- Unit project/building/floor references are immutable during update.
-- A publicly listed/resolved project must be both `PUBLISHED` and have a publication marked `isPublished`.
-- Service-level validation prevents duplicate public slugs within a company.
+- `locations`: ubicación del proyecto.
+- `plans`: planos asociados al proyecto.
+- `amenities`: amenities y características comunes.
+- `assets`: imágenes, renders, modelos, tours, vídeos y documentos.
+- `project_publications`: slug público, estado y configuración de publicación.
+- `project_experience_configs`: configuración de la experiencia visual/3D.
+- `project_access_links`: enlaces privados para operación de cliente.
+- `leads`: consultas generadas por el showroom.
+- `content_ingestion_jobs`: trabajos de ingreso asistido por IA.
 
-## Important gap
-The database has no database-level unique constraint for `(companyId, publicSlug)`; uniqueness is presently enforced in service code. It also has no authenticated principal-to-user/role model. Future migrations must preserve existing data and should add database constraints only after resolving the desired global public URL namespace: a public lookup by slug alone cannot distinguish equal slugs from separate companies.
+## Unit
 
-## Frontend model
-`src/domain/platformModels.js` and `src/data/projects/oceanMansions.js` provide a parallel in-memory model used by the demo showroom. This is useful as a prototype but is not yet a canonical, API-backed model.
+Una unidad contiene identificador, edificio, piso, número, superficie, dormitorios, baños, terraza, precio, moneda, estado, descripción, plano, referencia de modelo e imágenes.
+
+Estados comerciales: `AVAILABLE`, `RESERVED`, `SOLD`, `HIDDEN`.
+
+Monedas soportadas: `USD`, `UYU`, `ARS`, `EUR`.
+
+## Fuente de verdad
+
+Producción utiliza Supabase Postgres. El workspace modifica datos a través de `realestate-api`; el showroom consume el mismo proyecto publicado. No se deben mantener precios, estados o inventario duplicados en archivos del frontend.
