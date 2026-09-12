@@ -9,7 +9,11 @@
     { "source": "/proyecto/:slug/", "destination": "/index.html" },
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/admin/:path*", "destination": "/index.html" },
+    { "source": "/workspace", "destination": "/index.html" },
+    { "source": "/workspace/:path*", "destination": "/index.html" },
     { "source": "/platform", "destination": "/index.html" },
-    { "source": "/platform/:path*", "destination": "/index.html" }
+    { "source": "/platform/:path*", "destination": "/index.html" },
+    { "source": "/cliente/:token", "destination": "/index.html" },
+    { "source": "/cliente/:token/", "destination": "/index.html" }
   ]
 }
