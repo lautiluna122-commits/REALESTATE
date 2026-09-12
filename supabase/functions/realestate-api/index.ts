@@ -44,17 +44,18 @@ Deno.serve(async (req) => {
     if (path[0] === "platform") {
       await platformAuth(req);
       if (path[1] === "companies" && path[2] && path[3] === "projects" && method === "GET") return json((await q("projects", { match: { companyid: path[2] } })).map(project));
-      if (path[1] === "projects" && path[2] && path[3] === "access-link") {
-        const pid=path[2]; const own=await ownProject(req,pid);
-        if(method==="POST"){ const token=crypto.randomUUID().replaceAll("-","")+crypto.randomUUID().replaceAll("-",""); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); const tokenhash=Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join(""); await db.from("project_access_links").update({status:"REVOKED"}).eq("projectid",pid).eq("status","ACTIVE"); const body=await parse(req); const {data,error}=await db.from("project_access_links").insert({id:id(),companyid:own.c.id,projectid:pid,tokenhash,label:String(body.label||"Cliente"),role:"CLIENT_EDITOR",permissions:body.permissions||{editProject:false,editInventory:true,editContent:true,publish:false},status:"ACTIVE",createdat:now()}).select().single(); if(error)throw error; return json({id:data.id,projectId:pid,label:data.label,role:data.role,permissions:data.permissions,token},201);}
-        if(method==="DELETE"){await db.from("project_access_links").update({status:"REVOKED"}).eq("projectid",pid).eq("companyid",own.c.id).eq("status","ACTIVE");return json({active:false});}
-        return json({message:"Method not allowed"},405);
-      }
       if (path[1] === "projects" && path[2]) { const pid = path[2]; if (path[3] === "units" && method === "GET") return json((await q("units", { match: { projectid: pid } })).map(unit)); if (path[3] === "leads" && method === "GET") return json(await q("leads", { match: { projectid: pid }, order: "createdat.desc" })); const p = await getProject(pid); return p ? json(p) : json({ message: "Project not found" }, 404); }
       return json({ message: "Not found" }, 404);
     }
 
     if (path[0] === "public") {
+      if (path[1] === "projects" && path[2] && path[3] === "access-link") {
+        const pid=path[2]; const own=await ownProject(req,pid);
+        if(own.share) return json({active:true,role:own.share.role,permissions:own.share.permissions});
+        if(method==="POST"){ const token=crypto.randomUUID().replaceAll("-","")+crypto.randomUUID().replaceAll("-",""); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); const tokenhash=Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join(""); await db.from("project_access_links").update({status:"REVOKED"}).eq("projectid",pid).eq("status","ACTIVE"); const body=await parse(req); const {data,error}=await db.from("project_access_links").insert({id:id(),companyid:own.c.id,projectid:pid,tokenhash,label:String(body.label||"Cliente"),role:"CLIENT_EDITOR",permissions:body.permissions||{editProject:false,editInventory:true,editContent:true,publish:false},status:"ACTIVE",createdat:now()}).select().single(); if(error)throw error; return json({id:data.id,projectId:pid,label:data.label,role:data.role,permissions:data.permissions,token},201);}
+        if(method==="DELETE"){await db.from("project_access_links").update({status:"REVOKED"}).eq("projectid",pid).eq("companyid",own.c.id).eq("status","ACTIVE");return json({active:false});}
+        return json({message:"Method not allowed"},405);
+      }
       if (path[1] === "projects" && path[2]) {
         const { data: publication } = await db.from("project_publications").select("*").eq("publicslug", path[2]).eq("ispublished", true).eq("status", "PUBLISHED").maybeSingle();
         if (!publication) return json({ message: "Project not found or not published" }, 404);
@@ -85,6 +86,7 @@ Deno.serve(async (req) => {
       if (path[1] === "companies" && path[2] && path[3] === "projects") { if (String(path[2]) !== String(c.id)) return json({ message: "company mismatch" }, 403); return json((await q("projects", { match: { companyid: c.id } })).map(project)); }
       if (path[1] === "projects" && path[2]) {
         const pid = path[2]; const own = await ownProject(req, pid); const rest = path.slice(3); const resource = rest[0];
+        if (own.share && method !== "GET") { const allowed = (!resource && method === "PATCH") || (resource === "units" && rest[1] && method === "PATCH"); if (!allowed) return json({ message: "This client link only permits project and unit commercial edits" }, 403); }
         if (own.share && method !== "GET") {
           const allowed = (!resource && method === "PATCH") || (resource === "units" && rest[1] && method === "PATCH");
           if (!allowed) return json({ message: "This client link only permits project content and unit commercial edits" }, 403);
