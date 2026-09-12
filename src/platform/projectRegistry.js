@@ -1,7 +1,9 @@
-// Static demo data is opt-in only. Published projects are hydrated from the API.
+// Static demo data is used only as a resilient local/public fallback. Published projects are hydrated from the API.
 import { oceanMansionsProject } from '../data/projects/oceanMansions.js';
 
-export const projectCatalog = (import.meta.env?.VITE_ENABLE_DEMO_PROJECTS ?? false) === 'true' ? [oceanMansionsProject] : [];
+export { oceanMansionsProject };
+
+export const projectCatalog = [oceanMansionsProject];
 
 export const projectRegistry = Object.fromEntries(
   projectCatalog.map((project) => [project.id, project]),
