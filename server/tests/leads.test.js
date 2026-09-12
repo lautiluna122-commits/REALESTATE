@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import Database from 'better-sqlite3';
@@ -26,7 +25,6 @@ function waitForServer(child) {
 }
 
 test('POST /api/projects/:projectId/leads guarda correctamente el lead', async () => {
-  fs.rmSync(dataPath, { force: true });
   const { createCompany, createProject, publishProject } = await import('../services/projectService.js');
   const company = createCompany({ name: 'Lead Test Company', slug: `lead-test-${crypto.randomUUID().slice(0, 8)}` });
   const project = createProject({ companyId: company.id, name: 'Lead Test Project', slug: `lead-project-${crypto.randomUUID().slice(0, 8)}` });
@@ -52,8 +50,5 @@ test('POST /api/projects/:projectId/leads guarda correctamente el lead', async (
     } finally { db.close(); }
   } finally {
     child.kill('SIGTERM');
-    fs.rmSync(dataPath, { force: true });
-    fs.rmSync(`${dataPath}-shm`, { force: true });
-    fs.rmSync(`${dataPath}-wal`, { force: true });
   }
 });
