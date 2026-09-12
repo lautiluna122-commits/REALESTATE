@@ -1,12 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import ShowroomStable from './experience/ShowroomStable';
-import LeadCapture from './experience/LeadCapture';
-import AdminPortal from './admin/AdminPortal';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
+const ShowroomStable = lazy(() => import('./experience/ShowroomStable'));
+const LeadCapture = lazy(() => import('./experience/LeadCapture'));
+const AdminPortal = lazy(() => import('./admin/AdminPortal'));
 import { hydratePublishedProject } from './platform/projectRegistry';
 import './experience/showroom-premium.css';
 import './experience/visual-exploration.css';
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api';
+
+function RouteLoading({ label = 'Cargando REALESTATE…' }) {
+  return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#0b1214',color:'#f5f1e9',fontFamily:'Arial,sans-serif'}}><p>{label}</p></main>;
+}
 
 class AppErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
@@ -22,7 +26,7 @@ function SharedClientWorkspace({ token }) {
   useEffect(()=>{fetch(`${API}/admin/me`,{headers:{'x-share-token':token}}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.message||'Enlace inválido');if(!d.projectId)throw new Error('Este enlace no está asociado a un proyecto');return fetch(`${API}/admin/projects/${d.projectId}`,{headers:{'x-share-token':token}})}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.message||'No se pudo cargar el proyecto');setProject(d)}).catch(e=>setError(e.message))},[token]);
   if(error)return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:32,background:'#0b1214',color:'#fff'}}><section><p>REALESTATE · Acceso cliente</p><h1>Enlace inválido</h1><p>{error}</p></section></main>;
   if(!project)return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#0b1214',color:'#fff'}}><p>Cargando workspace…</p></main>;
-  return <AdminPortal sharedToken={token} sharedProject={project}/>;
+  return <Suspense fallback={<RouteLoading label="Cargando workspace…" />}><AdminPortal sharedToken={token} sharedProject={project}/></Suspense>;
 }
 
 function PublicShowroom({ publicSlug }) {
@@ -44,23 +48,23 @@ function PublicShowroom({ publicSlug }) {
         setProject(hydrated);
         setState('ready');
       })
-      .catch((error) => {
+      .catch(() => {
         if (!cancelled) { setState('error'); setProject(null); }
       });
     return () => { cancelled = true; };
   }, [publicSlug]);
 
-  if (state === 'loading') return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#0b1214',color:'#f5f1e9',fontFamily:'Arial,sans-serif'}}><p>Cargando showroom…</p></main>;
+  if (state === 'loading') return <RouteLoading label="Cargando showroom…" />;
   if (state === 'error' || !project) return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:32,background:'#0b1214',color:'#fff',fontFamily:'Arial,sans-serif'}}><section><p>REALESTATE</p><h1>Proyecto no encontrado.</h1><p>La publicación solicitada no existe o todavía no está publicada.</p></section></main>;
 
-  return <AppErrorBoundary><ShowroomStable projectId={project.id}/><LeadCapture projectId={project.id}/></AppErrorBoundary>;
+  return <Suspense fallback={<RouteLoading label="Cargando showroom…" />}><AppErrorBoundary><ShowroomStable projectId={project.id}/><LeadCapture projectId={project.id}/></AppErrorBoundary></Suspense>;
 }
 
 export default function App() {
   const path = window.location.pathname;
-  if (path === '/admin' || path.startsWith('/admin/')) return <AdminPortal />;
-  if (path === '/workspace' || path.startsWith('/workspace/')) return <AdminPortal />;
-  if (path === '/platform' || path.startsWith('/platform/')) return <AdminPortal platform />;
+  if (path === '/admin' || path.startsWith('/admin/')) return <Suspense fallback={<RouteLoading />}><AdminPortal /></Suspense>;
+  if (path === '/workspace' || path.startsWith('/workspace/')) return <Suspense fallback={<RouteLoading />}><AdminPortal /></Suspense>;
+  if (path === '/platform' || path.startsWith('/platform/')) return <Suspense fallback={<RouteLoading />}><AdminPortal platform /></Suspense>;
   const clientMatch = path.match(/^\/cliente\/([^/]+)\/?$/); if (clientMatch) return <SharedClientWorkspace token={clientMatch[1]} />;
   const match = path.match(/^\/proyecto\/([^/]+)\/?$/);
   if (!match) return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:32,background:'#0b1214',color:'#fff',fontFamily:'Arial,sans-serif'}}><section><p>REALESTATE</p><h1>Showroom no encontrado.</h1><p>Ingresá a la URL pública de un proyecto publicado.</p></section></main>;
