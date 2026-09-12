@@ -24,6 +24,7 @@ jobs:
           API_BASE: https://tldhihhyiphqarijpgcm.supabase.co/functions/v1/realestate-api
         run: |
           set -euo pipefail
+          echo "Diagnostic:" && curl -fsS "https://tldhihhyiphqarijpgcm.supabase.co/functions/v1/realestate-diagnostic"
           test "$(curl -fsS "$API_BASE/health" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).status')" = "ok"
           test "$(curl -fsS "$API_BASE/public/projects/ocean-mansions" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).project.slug')" = "ocean-mansions"
           test "$(curl -sS -o /dev/null -w '%{http_code}' "$API_BASE/admin/me")" = "401"
