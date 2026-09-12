@@ -10,7 +10,7 @@ const db = createClient(supabaseUrl, secretKey);
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-api-key, content-type",
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
 };
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const fail = (message: string, status = 400) => json({ message }, status);
@@ -72,6 +72,12 @@ Deno.serve(async (req) => {
         uploadedByCompanyId: company.id,
         source: "workspace-upload",
       };
+      const { data: existingPrimary } = kind === "image"
+        ? await db.from("assets").select("id").eq("projectid", projectId).eq("kind", "image").eq("isprimary", true).limit(1).maybeSingle()
+        : { data: null };
+      const requestedPrimary = String(form.get("isPrimary") || "").toLowerCase() === "true";
+      const makePrimary = kind === "image" && (requestedPrimary || !existingPrimary);
+      if (makePrimary) await db.from("assets").update({ isprimary: false }).eq("projectid", projectId).eq("kind", "image");
       const { data: asset, error: assetError } = await db.from("assets").insert({
         id: assetId,
         projectid: projectId,
@@ -83,7 +89,7 @@ Deno.serve(async (req) => {
         url: "",
         mimetype: mimeType,
         metadata,
-        isprimary: false,
+        isprimary: makePrimary,
         createdat: new Date().toISOString(),
       }).select().single();
       if (assetError) {
@@ -91,6 +97,35 @@ Deno.serve(async (req) => {
         throw assetError;
       }
       return json({ asset: { ...asset, projectId, path: pathName }, storagePath: pathName }, 201);
+    }
+
+    if (path[0] === "public" && path[1] === "projects" && path[2] && path[3] === "hero" && req.method === "GET") {
+      const projectId = path[2];
+      const { data: project, error: projectError } = await db.from("projects").select("id,status").eq("id", projectId).eq("status", "PUBLISHED").maybeSingle();
+      if (projectError) throw projectError;
+      if (!project) return fail("Project not found or not published", 404);
+      const { data: asset, error: assetError } = await db.from("assets").select("*").eq("projectid", projectId).eq("kind", "image").order("isprimary", { ascending: false }).order("createdat", { ascending: true }).limit(1).maybeSingle();
+      if (assetError) throw assetError;
+      if (!asset) return fail("Project has no hero image", 404);
+      const expires = Math.min(Math.max(Number(url.searchParams.get("expires") || 3600), 60), 86400);
+      const { data, error: signedError } = await db.storage.from("project-assets").createSignedUrl(asset.path, expires);
+      if (signedError) throw signedError;
+      return json({ url: data.signedUrl, assetId: asset.id, expiresIn: expires });
+    }
+
+    if (path[0] === "projects" && path[1] && path[2] === "assets" && path[3] && req.method === "PATCH") {
+      const projectId = path[1];
+      const assetId = path[3];
+      await ownProject(req, projectId);
+      const body = await req.json().catch(() => ({}));
+      const values: Record<string, unknown> = {};
+      if ("name" in body) values.name = String(body.name || "").slice(0, 180);
+      if ("isPrimary" in body) values.isprimary = Boolean(body.isPrimary);
+      if ("kind" in body) values.kind = String(body.kind || "image");
+      if ("isPrimary" in body && body.isPrimary) await db.from("assets").update({ isprimary: false }).eq("projectid", projectId).eq("kind", "image");
+      const { data: asset, error } = await db.from("assets").update(values).eq("id", assetId).eq("projectid", projectId).select().single();
+      if (error) throw error;
+      return json(asset);
     }
 
     if (path[0] === "assets" && path[1] && path[2] === "signed-url" && req.method === "GET") {
