@@ -16,6 +16,14 @@ class AppErrorBoundary extends React.Component {
   }
 }
 
+function SharedClientWorkspace({ token }) {
+  const [project,setProject]=useState(null),[error,setError]=useState('');
+  useEffect(()=>{fetch(`${API}/admin/me`,{headers:{'x-share-token':token}}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.message||'Enlace inválido');if(!d.projectId)throw new Error('Este enlace no está asociado a un proyecto');return fetch(`${API}/admin/projects/${d.projectId}`,{headers:{'x-share-token':token}})}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.message||'No se pudo cargar el proyecto');setProject(d)}).catch(e=>setError(e.message))},[token]);
+  if(error)return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:32,background:'#0b1214',color:'#fff'}}><section><p>REALESTATE · Acceso cliente</p><h1>Enlace inválido</h1><p>{error}</p></section></main>;
+  if(!project)return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#0b1214',color:'#fff'}}><p>Cargando workspace…</p></main>;
+  return <AdminPortal sharedToken={token} sharedProject={project}/>;
+}
+
 function PublicShowroom({ publicSlug }) {
   const [project, setProject] = useState(null);
   const [state, setState] = useState('loading');
@@ -52,6 +60,7 @@ export default function App() {
   if (path === '/admin' || path.startsWith('/admin/')) return <AdminPortal />;
   if (path === '/workspace' || path.startsWith('/workspace/')) return <AdminPortal />;
   if (path === '/platform' || path.startsWith('/platform/')) return <AdminPortal platform />;
+  const clientMatch = path.match(/^\/cliente\/([^/]+)\/?$/); if (clientMatch) return <SharedClientWorkspace token={clientMatch[1]} />;
   const match = path.match(/^\/proyecto\/([^/]+)\/?$/);
   if (!match) return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:32,background:'#0b1214',color:'#fff',fontFamily:'Arial,sans-serif'}}><section><p>REALESTATE</p><h1>Showroom no encontrado.</h1><p>Ingresá a la URL pública de un proyecto publicado.</p></section></main>;
   return <PublicShowroom publicSlug={match[1]} />;
