@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import Database from 'better-sqlite3';
 
@@ -24,12 +25,16 @@ function waitForServer(child) {
 
 test('POST /api/projects/:projectId/leads guarda correctamente el lead', async () => {
   const { getDbPath } = await import('../db.js');
-  const dataPath = getDbPath();
   const { createCompany, createProject, publishProject } = await import('../services/projectService.js');
+  const dataPath = getDbPath();
   const company = createCompany({ name: 'Lead Test Company', slug: `lead-test-${crypto.randomUUID().slice(0, 8)}` });
   const project = createProject({ companyId: company.id, name: 'Lead Test Project', slug: `lead-project-${crypto.randomUUID().slice(0, 8)}` });
   publishProject(project.id, { publicSlug: project.slug });
-  const child = spawn(process.execPath, ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, NODE_ENV: 'development', TEST_DB_FILE: dataPath, PORT: String(port) }, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['server/index.js'], {
+    cwd: process.cwd(),
+    env: { ...process.env, NODE_ENV: 'development', PORT: String(port), TEST_DB_FILE: dataPath },
+    stdio: 'ignore',
+  });
   try {
     await waitForServer(child);
     const leadPayload = { name: 'Ana Pérez', email: 'ana@example.com', phone: '+598 99 123 456' };
@@ -50,5 +55,6 @@ test('POST /api/projects/:projectId/leads guarda correctamente el lead', async (
     } finally { db.close(); }
   } finally {
     child.kill('SIGTERM');
+    for (const suffix of ['', '-shm', '-wal']) fs.rmSync(`${dataPath}${suffix}`, { force: true });
   }
 });
