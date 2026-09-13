@@ -12,6 +12,8 @@ export default function LivePreview({ project, data, apiKey = '', authHeader = '
   useEffect(() => {
     let cancelled = false;
     setReady(false);
+    setHeroImageUrl('');
+
     hydratePublishedProject({
       project,
       publication: data.publication,
@@ -24,26 +26,23 @@ export default function LivePreview({ project, data, apiKey = '', authHeader = '
       location: data.location,
     });
 
-    setReady(true);
-
     const primary = (data.assets || []).find((asset) => asset.kind === 'image' && asset.isprimary);
     const fallback = (data.assets || []).find((asset) => asset.kind === 'image');
     const asset = primary || fallback;
 
     if (asset && authHeader === 'x-api-key' && apiKey) {
       fetch(`${ASSET_API}/assets/${asset.id}/signed-url`, { headers })
-        .then((r) => r.ok ? r.json() : null)
+        .then((response) => response.ok ? response.json() : null)
         .then((payload) => {
           if (!cancelled) setHeroImageUrl(payload?.url || '');
         })
         .catch(() => {});
-    } else {
-      setHeroImageUrl('');
     }
 
-    if (!ready) return <div className="platformPlaceholder"><span>LIVE PROJECT VIEW</span><h2>Preparando experiencia…</h2></div>;
-
-  return () => { cancelled = true; setReady(false); };
+    setReady(true);
+    return () => {
+      cancelled = true;
+    };
   }, [project, data, apiKey, authHeader, headers]);
 
   return (
