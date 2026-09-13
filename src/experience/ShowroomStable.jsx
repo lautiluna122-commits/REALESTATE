@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getProjectById, getProjectUnits } from '../platform/projectRegistry';
 import { STATUS_LABELS, UNIT_STATUS } from '../domain/platformModels';
 
@@ -76,9 +76,9 @@ function Landscape({ night }) {
   );
 }
 
-function Scene({ units, floorNumbers, selected, onSelect, night }) {
+function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cameraMode }) {
   return (
-    <Canvas shadows dpr={[1, 1.5]} camera={{ position: [39, 20, 44], fov: 34 }} gl={{ antialias: true, powerPreference: 'high-performance' }} style={{ width: '100%', height: '100%' }}>
+    <Canvas shadows dpr={[1, 1.5]} camera={{ position: cameraMode === 'front' ? [0, 15, 48] : cameraMode === 'top' ? [0, 62, 12] : [39, 20, 44], fov: cameraMode === 'top' ? 42 : 34 }} gl={{ antialias: true, powerPreference: 'high-performance' }} style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={[night ? '#071316' : '#9dbdc0']} />
       <fog attach="fog" args={[night ? '#071316' : '#a9c5c5', 48, 125]} />
       <hemisphereLight intensity={night ? .55 : 1.55} groundColor={night ? '#101c1e' : '#66796e'} color={night ? '#8faeb4' : '#fffaf2'} />
@@ -86,7 +86,7 @@ function Scene({ units, floorNumbers, selected, onSelect, night }) {
       <directionalLight position={[24, 16, -16]} intensity={night ? .75 : 1.1} />
       <Landscape night={night} />
       <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />
-      <OrbitControls enableDamping dampingFactor={.055} minDistance={15} maxDistance={78} maxPolarAngle={Math.PI / 2.02} target={[0, 13, 4]} />
+      <OrbitControls enableDamping dampingFactor={.055} minDistance={15} maxDistance={78} minPolarAngle={0.38} maxPolarAngle={Math.PI / 2.02} target={[0, focusFloor ? focusFloor * 2.35 : 13, 4]} />
     </Canvas>
   );
 }
@@ -96,6 +96,8 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
   const units = useMemo(() => getProjectUnits(projectId), [projectId]);
   const floorNumbers = useMemo(() => [...new Set(units.map((unit) => Number(unit.floor)).filter(Number.isFinite))].sort((a, b) => a - b), [units]);
   const [selected, setSelected] = useState(null);
+  const [focusFloor, setFocusFloor] = useState(null);
+  const [cameraMode, setCameraMode] = useState('orbit');
   const [night, setNight] = useState(false);
   const [floor, setFloor] = useState('Todos');
   const [activeExperience, setActiveExperience] = useState('3D interactivo');
@@ -131,7 +133,21 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
     <main className={`stableShowroom ${night ? 'isNight' : ''}`}>
       <section className={`stableHero ${resolvedHeroImage ? 'hasHeroImage' : ''}`}>
         {resolvedHeroImage && <div className="stableHeroImage" style={{ backgroundImage: `url("${resolvedHeroImage}")` }} aria-label={`${project.name} render`} />}
-        <div className="stableCanvas"><Scene units={units} floorNumbers={floorNumbers} selected={selected} onSelect={setSelected} night={night} /></div>
+        <div className="stableCanvas">
+          <Scene units={units} floorNumbers={floorNumbers} selected={selected} onSelect={setSelected} night={night} focusFloor={focusFloor} cameraMode={cameraMode} />
+          <div className="showroom3dControls" aria-label="Controles del showroom 3D">
+            <div className="showroom3dModes">
+              <button className={cameraMode === 'orbit' ? 'active' : ''} onClick={() => setCameraMode('orbit')}>3D</button>
+              <button className={cameraMode === 'front' ? 'active' : ''} onClick={() => setCameraMode('front')}>Frente</button>
+              <button className={cameraMode === 'top' ? 'active' : ''} onClick={() => setCameraMode('top')}>Aérea</button>
+            </div>
+            <div className="showroom3dFloors">
+              <button className={focusFloor === null ? 'active' : ''} onClick={() => setFocusFloor(null)}>Todos</button>
+              {floorNumbers.map((f) => <button key={f} className={focusFloor === f ? 'active' : ''} onClick={() => setFocusFloor(f)}>P{f}</button>)}
+            </div>
+            <small>Arrastrá para recorrer · rueda para acercar · tocá una unidad para verla</small>
+          </div>
+        </div>
         <div className="stableAtmosphere" />
         <header className="stableNav">
           <div className="stableBrand"><span>OM</span><div><b>{project.name.toUpperCase()}</b><small>{project.location?.city?.toUpperCase()} · {project.location?.district?.toUpperCase()}</small></div></div>
@@ -161,6 +177,10 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
       </section>
 
       <section id="experiencia" className="stableSection experience">
+        <div className="virtualShowroomCallout">
+          <div><span className="stableEyebrow">SHOWROOM VIRTUAL 3D</span><h2>Recorré el proyecto<br /><i>en tiempo real.</i></h2><p>Seleccioná un piso, acercate a una unidad y girá la cámara. La disponibilidad y los datos comerciales provienen del inventario del proyecto.</p></div>
+          <div className="virtualSteps"><span><b>01</b>Elegí piso</span><span><b>02</b>Explorá 3D</span><span><b>03</b>Seleccioná unidad</span><span><b>04</b>Consultá</span></div>
+        </div>
         <div className="experienceLead"><p className="stableEyebrow">DIGITAL PROPERTY EXPERIENCE</p><h2>Antes de comprar,<br /><i>vivila.</i></h2><p>El showroom transforma una ficha inmobiliaria en un recorrido completo: edificio, interiores, amenities, planos, inventario y ubicación.</p></div>
         <div className="experiencePanel"><div className="experienceTabs">{['3D interactivo', 'Interiores', 'Amenities', 'Ubicación'].map((item, i) => <button key={item} className={activeExperience === item ? 'active' : ''} onClick={() => setActiveExperience(item)}><span>0{i + 1}</span>{item}</button>)}</div><div className="experienceDetail"><small>EXPERIENCIA / {activeExperience.toUpperCase()}</small><h3>{activeExperience === '3D interactivo' ? 'Recorré la arquitectura.' : activeExperience === 'Interiores' ? 'Entrá antes de visitar.' : activeExperience === 'Amenities' ? 'Descubrí cómo se vive.' : 'Entendé dónde estás comprando.'}</h3><p>Una capa digital diseñada para reducir fricción comercial y darle al proyecto una presencia acorde a su valor.</p></div></div>
       </section>
