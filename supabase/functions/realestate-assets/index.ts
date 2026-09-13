@@ -20,7 +20,7 @@ const allowed = new Set([
   "application/pdf", "image/png", "image/jpeg", "image/svg+xml", "image/webp",
   "text/csv", "application/csv", "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "model/gltf-binary", "model/gltf+json", "application/octet-stream",
+  "model/gltf-binary", "model/gltf+json", "application/octet-stream", "video/mp4", "video/webm",
 ]);
 
 async function companyByKey(key: string) {
@@ -111,6 +111,24 @@ Deno.serve(async (req) => {
       const { data, error: signedError } = await db.storage.from("project-assets").createSignedUrl(asset.path, expires);
       if (signedError) throw signedError;
       return json({ url: data.signedUrl, assetId: asset.id, expiresIn: expires });
+    }
+
+    if (path[0] === "public" && path[1] === "projects" && path[2] && path[3] === "media" && req.method === "GET") {
+      const projectId = path[2];
+      const { data: project, error: projectError } = await db.from("projects").select("id,status").eq("id", projectId).eq("status", "PUBLISHED").maybeSingle();
+      if (projectError) throw projectError;
+      if (!project) return fail("Project not found or not published", 404);
+      const { data: assets, error: assetsError } = await db.from("assets").select("*").eq("projectid", projectId).order("isprimary", { ascending: false }).order("createdat", { ascending: true });
+      if (assetsError) throw assetsError;
+      const expires = Math.min(Math.max(Number(url.searchParams.get("expires") || 3600), 60), 86400);
+      const media = [];
+      for (const asset of assets || []) {
+        if (!asset.path) continue;
+        const { data: signed, error: signedError } = await db.storage.from("project-assets").createSignedUrl(asset.path, expires);
+        if (signedError) continue;
+        media.push({ id: asset.id, name: asset.name, kind: asset.kind, mimetype: asset.mimetype, isPrimary: Boolean(asset.isprimary), url: signed.signedUrl });
+      }
+      return json({ media, expiresIn: expires });
     }
 
     if (path[0] === "projects" && path[1] && path[2] === "assets" && path[3] && req.method === "PATCH") {
