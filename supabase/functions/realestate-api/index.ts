@@ -208,8 +208,150 @@ Deno.serve(async (req) => {
           const unitId = rest[1]; const body = await parse(req); const current = await db.from("units").select("*").eq("id", unitId).eq("projectid", pid).maybeSingle(); if (current.error) throw current.error; if (!current.data) return json({ message: "Unit not found" }, 404); const values: Record<string, unknown> = {}; const allowed = ["number", "surface", "bedrooms", "bathrooms", "terrace", "price", "currency", "status", "description", "planId", "modelReference", "images"]; const mapping: Record<string, string> = { planId: "planid", modelReference: "modelreference" }; for (const key of allowed) if (key in body) values[mapping[key] || key] = body[key]; if ("status" in values && !unitStatuses.has(String(values.status))) return json({ message: "Invalid unit status" }, 400); if ("currency" in values && !currencies.has(String(values.currency))) return json({ message: "Invalid currency" }, 400); for (const key of ["surface", "bedrooms", "bathrooms", "terrace", "price"]) { if (key in values) { const n = Number(values[key]); if (!Number.isFinite(n) || n < 0) return json({ message: `Invalid unit numeric value: ${key}` }, 400); values[key] = n; } } if ("planid" in values && values.planid) { const { data: plan } = await db.from("plans").select("id").eq("id", values.planid).eq("projectid", pid).maybeSingle(); if (!plan) return json({ message: "Plan does not belong to this project" }, 400); } if ("number" in values) { const duplicate = await db.from("units").select("id").eq("projectid", pid).eq("floorid", current.data.floorid).eq("number", String(values.number)).neq("id", unitId).maybeSingle(); if (duplicate.data) return json({ message: "unit number already exists on this floor" }, 409); values.number = String(values.number); } if ("images" in values && !Array.isArray(values.images)) return json({ message: "images must be an array" }, 400); const { data, error } = await db.from("units").update(values).eq("id", unitId).eq("projectid", pid).select().single(); if (error) throw error; return json(unit(data));
         }
 
-        if (["plans", "amenities", "assets", "location"].includes(resource)) { const table: any = { plans: "plans", amenities: "amenities", assets: "assets", location: "locations" }[resource]; if (method === "GET") { const rows = await q(table, { match: { projectid: pid } }); return json(resource === "location" ? (rows[0] || null) : rows); } if (method !== "POST") return json({ message: "Method not allowed" }, 405); const b = await parse(req); const base: any = { id: id(), projectid: pid, createdat: now() }; if (resource === "plans") Object.assign(base, { name: b.name, kind: b.kind || "architectural", filepath: b.filePath || "", description: b.description || "" }); if (resource === "amenities") Object.assign(base, { name: b.name, description: b.description || "", category: b.category || "common" }); if (resource === "assets") Object.assign(base, { entitytype: b.entityType || null, entityid: b.entityId || null, name: b.name, kind: b.kind || "image", path: b.path || "", url: b.url || "", mimetype: b.mimeType || "", metadata: b.metadata || null, isprimary: Boolean(b.isPrimary) }); if (resource === "location") Object.assign(base, { name: b.name, city: b.city, country: b.country, district: b.district || "", coordinates: b.coordinates || null }); const { data, error } = await db.from(table).insert(base).select().single(); if (error) throw error; return json(data, 201); }
-        if (resource === "publication") { if (method === "GET") { const { data } = await db.from("project_publications").select("*").eq("projectid", pid).maybeSingle(); return json(pub(data)); } if (!["POST","PATCH"].includes(method)) return json({ message: "Method not allowed" },405); const body = await parse(req); const publicSlug = slugify(body.publicSlug || own.p.slug); if (!publicSlug) return json({ message: "public slug is required" }, 400); if (method === "POST") { const { data: conflict } = await db.from("project_publications").select("projectid").eq("publicslug", publicSlug).maybeSingle(); if (conflict && String(conflict.projectid) !== String(pid)) return json({ message: "public slug already exists" }, 409); const { data, error } = await db.from("project_publications").insert({ id: id(), projectid: pid, publicslug: publicSlug, publicurl: body.publicUrl || "", title: body.title || "", description: body.description || "", thumbnail: body.thumbnail || "", buttontext: body.buttonText || "Explorar en 3D", ispublished: false, customdomain: body.customDomain || "", status: "DRAFT", createdat: now() }).select().single(); if (error) throw error; return json(pub(data), 201); } const values: any = {}; for (const [k, v] of Object.entries(body)) values[{ publicSlug: "publicslug", publicUrl: "publicurl", buttonText: "buttontext", customDomain: "customdomain" }[k] || k] = v; if ("publicslug" in values) { values.publicslug = slugify(values.publicslug); const { data: conflict } = await db.from("project_publications").select("projectid").eq("publicslug", values.publicslug).neq("projectid", pid).maybeSingle(); if (conflict) return json({ message: "public slug already exists" }, 409); } const { data, error } = await db.from("project_publications").update(values).eq("projectid", pid).select().single(); if (error) throw error; return json(pub(data)); }
+        if (["plans", "amenities", "assets", "location"].includes(resource)) {
+          const table: any = { plans: "plans", amenities: "amenities", assets: "assets", location: "locations" }[resource];
+
+          if (method === "GET") {
+            const rows = await q(table, { match: { projectid: pid } });
+            return json(resource === "location" ? (rows[0] || null) : rows);
+          }
+
+          if (resource === "location" && rest[1]) {
+            const locationId = rest[1];
+            if (method === "PATCH") {
+              const body = await parse(req);
+              const values: Record<string, unknown> = {};
+              for (const key of ["name", "city", "country", "district", "coordinates"]) {
+                if (key in body) values[key] = key === "coordinates" ? (body[key] || null) : String(body[key] || "");
+              }
+              const { data, error } = await db.from("locations").update(values)
+                .eq("id", locationId).eq("projectid", pid).select().single();
+              if (error) throw error;
+              return json(data);
+            }
+            if (method === "DELETE") {
+              const { error } = await db.from("locations").delete().eq("id", locationId).eq("projectid", pid);
+              if (error) throw error;
+              return json({ deleted: true, id: locationId });
+            }
+          }
+
+          if (resource === "plans" && rest[1]) {
+            const planId = rest[1];
+            if (method === "PATCH") {
+              const body = await parse(req);
+              const values: Record<string, unknown> = {};
+              if ("name" in body) values.name = String(body.name || "").slice(0, 180);
+              if ("kind" in body) values.kind = String(body.kind || "architectural").slice(0, 80);
+              if ("filePath" in body) values.filepath = String(body.filePath || "");
+              if ("description" in body) values.description = String(body.description || "").slice(0, 2000);
+              const { data, error } = await db.from("plans").update(values)
+                .eq("id", planId).eq("projectid", pid).select().single();
+              if (error) throw error;
+              return json(data);
+            }
+            if (method === "DELETE") {
+              await db.from("units").update({ planid: null }).eq("projectid", pid).eq("planid", planId);
+              const { error } = await db.from("plans").delete().eq("id", planId).eq("projectid", pid);
+              if (error) throw error;
+              return json({ deleted: true, id: planId });
+            }
+          }
+
+          if (resource === "amenities" && rest[1]) {
+            const amenityId = rest[1];
+            if (method === "PATCH") {
+              const body = await parse(req);
+              const values: Record<string, unknown> = {};
+              if ("name" in body) values.name = String(body.name || "").trim().slice(0, 180);
+              if ("description" in body) values.description = String(body.description || "").slice(0, 2000);
+              if ("category" in body) values.category = String(body.category || "common").slice(0, 80);
+              if ("name" in values && !String(values.name).trim()) return json({ message: "amenity name is required" }, 400);
+              const { data, error } = await db.from("amenities").update(values)
+                .eq("id", amenityId).eq("projectid", pid).select().single();
+              if (error) throw error;
+              return json(data);
+            }
+            if (method === "DELETE") {
+              const { error } = await db.from("amenities").delete().eq("id", amenityId).eq("projectid", pid);
+              if (error) throw error;
+              return json({ deleted: true, id: amenityId });
+            }
+          }
+
+          if (method !== "POST") return json({ message: "Method not allowed" }, 405);
+
+          const b = await parse(req);
+          const base: any = { id: id(), projectid: pid, createdat: now() };
+
+          if (resource === "plans") {
+            const name = String(b.name || "").trim();
+            if (!name) return json({ message: "plan name is required" }, 400);
+            Object.assign(base, { name, kind: b.kind || "architectural", filepath: b.filePath || "", description: b.description || "" });
+          }
+
+          if (resource === "amenities") {
+            const name = String(b.name || "").trim();
+            if (!name) return json({ message: "amenity name is required" }, 400);
+            Object.assign(base, { name, description: b.description || "", category: b.category || "common" });
+          }
+
+          if (resource === "assets") {
+            Object.assign(base, {
+              entitytype: b.entityType || null, entityid: b.entityId || null,
+              name: b.name, kind: b.kind || "image", path: b.path || "", url: b.url || "",
+              mimetype: b.mimeType || "", metadata: b.metadata || null, isprimary: Boolean(b.isPrimary)
+            });
+          }
+
+          if (resource === "location") {
+            Object.assign(base, { name: b.name || "", city: b.city || "", country: b.country || "", district: b.district || "", coordinates: b.coordinates || null });
+          }
+
+          const { data, error } = await db.from(table).insert(base).select().single();
+          if (error) throw error;
+          return json(data, 201);
+        }
+        if (resource === "publication") {
+          if (method === "GET") {
+            const { data, error } = await db.from("project_publications").select("*").eq("projectid", pid).maybeSingle();
+            if (error) throw error;
+            return json(pub(data));
+          }
+          if (!["POST", "PATCH"].includes(method)) return json({ message: "Method not allowed" }, 405);
+
+          const body = await parse(req);
+          const publicSlug = slugify(body.publicSlug || own.p.slug);
+          if (!publicSlug) return json({ message: "public slug is required" }, 400);
+
+          const { data: conflict } = await db.from("project_publications")
+            .select("projectid").eq("publicslug", publicSlug).neq("projectid", pid).maybeSingle();
+          if (conflict) return json({ message: "public slug already exists" }, 409);
+
+          const values: any = {
+            publicslug: publicSlug,
+            publicurl: body.publicUrl || "",
+            title: String(body.title || own.p.name).slice(0, 180),
+            description: String(body.description || own.p.description || "").slice(0, 4000),
+            thumbnail: body.thumbnail || "",
+            buttontext: body.buttonText || "Explorar en 3D",
+            customdomain: body.customDomain || "",
+          };
+
+          const { data: existing } = await db.from("project_publications").select("*").eq("projectid", pid).maybeSingle();
+
+          if (existing) {
+            const { data, error } = await db.from("project_publications").update(values).eq("projectid", pid).select().single();
+            if (error) throw error;
+            return json(pub(data));
+          }
+
+          const { data, error } = await db.from("project_publications").insert({
+            id: id(), projectid: pid, ...values, ispublished: false, status: "DRAFT", createdat: now()
+          }).select().single();
+          if (error) throw error;
+          return json(pub(data), 201);
+        }
         if (resource === "publish" && method === "POST") { const body = await parse(req); const current = await db.from("project_publications").select("*").eq("projectid", pid).maybeSingle(); const slug = slugify(body.publicSlug || current.data?.publicslug || own.p.slug); if (!slug) return json({ message: "public slug is required" }, 400); const { data: conflict } = await db.from("project_publications").select("projectid").eq("publicslug", slug).neq("projectid", pid).maybeSingle(); if (conflict) return json({ message: "public slug already exists" }, 409); let data; if (current.data) { const r = await db.from("project_publications").update({ publicslug: slug, ispublished: true, status: "PUBLISHED" }).eq("projectid", pid).select().single(); if (r.error) throw r.error; data = r.data; } else { const r = await db.from("project_publications").insert({ id: id(), projectid: pid, publicslug: slug, ispublished: true, status: "PUBLISHED", createdat: now(), buttontext: "Explorar en 3D" }).select().single(); if (r.error) throw r.error; data = r.data; } const pr = await db.from("projects").update({ status: "PUBLISHED" }).eq("id", pid).select().single(); if (pr.error) throw pr.error; return json({ project: project(pr.data), publication: pub(data) }); }
         if (resource === "unpublish" && method === "POST") { const r = await db.from("project_publications").update({ ispublished: false, status: "DRAFT" }).eq("projectid", pid).select().single(); if (r.error) throw r.error; const pr = await db.from("projects").update({ status: "DRAFT" }).eq("id", pid).select().single(); if (pr.error) throw pr.error; return json(pub(r.data)); }
         if (resource === "leads" && method === "GET") return json(await q("leads", { match: { projectid: pid }, order: "createdat.desc" }));
