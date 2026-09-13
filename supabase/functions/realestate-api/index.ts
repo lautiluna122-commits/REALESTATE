@@ -29,7 +29,17 @@ async function ownProject(req: Request, pid: string) {
   if (share) { if(String(share.projectid)!==String(pid)) throw Object.assign(new Error("share link is scoped to another project"),{status:403}); const p=await getProject(pid); if(!p || String(p.companyId)!==String(share.companyid)) throw Object.assign(new Error("project access denied"),{status:403}); return { c:{id:share.companyid,name:"Shared workspace",slug:"shared",status:"ACTIVE"}, p, share }; }
   const key = req.headers.get("x-api-key"); if (!key) throw Object.assign(new Error("x-api-key header required"), { status: 401 }); const c = await companyByKey(key); if (!c || c.status !== "ACTIVE") throw Object.assign(new Error("invalid api key"), { status: 401 }); const p = await getProject(pid); if (!p) throw Object.assign(new Error("Project not found"), { status: 404 }); if (String(p.companyId) !== String(c.id)) throw Object.assign(new Error("project access denied"), { status: 403 }); return { c, p };
 }
-async function platformAuth(req: Request) { const configured = Deno.env.get("PLATFORM_API_KEY") || secretKeys.platform || ""; const supplied = req.headers.get("x-platform-key") || ""; if (!configured || !supplied || supplied !== configured) throw Object.assign(new Error("invalid platform key"), { status: 401 }); }
+async function platformAuth(req: Request) {
+  const supplied = req.headers.get("x-platform-key") || "";
+  if (!supplied) throw Object.assign(new Error("platform access key required"), { status: 401 });
+  const configured = Deno.env.get("PLATFORM_API_KEY") || secretKeys.platform || "";
+  if (configured && supplied === configured) return;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(supplied));
+  const suppliedHash = Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  const { data, error } = await db.from("platform_access").select("id").eq("password_hash", suppliedHash).eq("status","ACTIVE").maybeSingle();
+  if (error) throw error;
+  if (!data) throw Object.assign(new Error("invalid platform key"), { status: 401 });
+}
 async function parse(req: Request) { try { return await req.json(); } catch { return {}; } }
 
 Deno.serve(async (req) => {
