@@ -88,7 +88,8 @@ async function processWithOpenAI(job: any, assets: any[]) {
     text: [
       "You are the structured ingestion engine for a real-estate virtual showroom.",
       "Analyze the supplied project material and return ONLY valid JSON.",
-      "Schema: {structure:{buildings:[],floors:[],units:[],amenities:[]},scene:{environment:{},anchors:[]},media:{assets:[],hotspots:[]},confidence:0,notes:[],sources:[]}",
+      "Schema: {structure:{buildings:[{name,reference}],floors:[{buildingName,buildingReference,number,name}],units:[{buildingName,buildingReference,floorNumber,number,surface,bedrooms,bathrooms,terrace,price,currency,status,description}],amenities:[{name,description,category}]},scene:{environment:{},anchors:[]},media:{assets:[],hotspots:[]},confidence:0,notes:[],sources:[]}",
+      "For structure, use exact source values only. Do not invent building/floor/unit identifiers. Units must reference an existing or proposed building and floor by name/reference/number.",
       "Never invent measurements, prices, unit numbers or geometry. Use null when unknown.",
       "For inferred values include source filename and confidence.",
       `Job kind: ${job.kind}`,
@@ -153,6 +154,114 @@ async function processWithOpenAI(job: any, assets: any[]) {
     extractedData,
     metadata: { provider: "openai", model, responseId: payload.id || null },
   };
+}
+
+async function applyApprovedData(projectId: string, extractedData: any) {
+  const structure = extractedData?.structure || {};
+  const buildings = Array.isArray(structure.buildings) ? structure.buildings : [];
+  const floors = Array.isArray(structure.floors) ? structure.floors : [];
+  const units = Array.isArray(structure.units) ? structure.units : [];
+  const amenities = Array.isArray(structure.amenities) ? structure.amenities : [];
+  const key = (value: any) => String(value ?? "").trim().toLowerCase();
+  const buildingMap = new Map<string, string>();
+  const floorMap = new Map<string, string>();
+
+  const existingBuildings = await db.from("buildings").select("*").eq("projectid", projectId);
+  if (existingBuildings.error) throw existingBuildings.error;
+  for (const b of existingBuildings.data || []) {
+    buildingMap.set(key(b.id), b.id);
+    buildingMap.set(key(b.name), b.id);
+    if (b.reference) buildingMap.set(key(b.reference), b.id);
+  }
+
+  for (const item of buildings) {
+    const name = String(item.name || item.reference || "").trim();
+    if (!name) continue;
+    const reference = String(item.reference || "").trim();
+    let buildingId = buildingMap.get(key(reference)) || buildingMap.get(key(name));
+    if (!buildingId) {
+      const inserted = await db.from("buildings").insert({
+        id: id(), projectid: projectId, name, reference,
+        metadata: { source: "ai-approved" }, createdat: now()
+      }).select().single();
+      if (inserted.error) throw inserted.error;
+      buildingId = inserted.data.id;
+      buildingMap.set(key(name), buildingId);
+      if (reference) buildingMap.set(key(reference), buildingId);
+    }
+  }
+
+  const existingFloors = await db.from("floors").select("*").eq("projectid", projectId);
+  if (existingFloors.error) throw existingFloors.error;
+  for (const f of existingFloors.data || []) floorMap.set(`${f.buildingid}:${f.number}`, f.id);
+
+  for (const item of floors) {
+    const number = Number(item.number ?? item.floorNumber);
+    if (!Number.isFinite(number)) continue;
+    const buildingId = buildingMap.get(key(item.buildingReference)) || buildingMap.get(key(item.buildingName));
+    if (!buildingId) continue;
+    const mapKey = `${buildingId}:${number}`;
+    if (floorMap.has(mapKey)) continue;
+    const inserted = await db.from("floors").insert({
+      id: id(), projectid: projectId, buildingid: buildingId, number,
+      name: String(item.name || ""), metadata: { source: "ai-approved" }, createdat: now()
+    }).select().single();
+    if (inserted.error) throw inserted.error;
+    floorMap.set(mapKey, inserted.data.id);
+  }
+
+  for (const item of units) {
+    const buildingId = buildingMap.get(key(item.buildingReference)) || buildingMap.get(key(item.buildingName));
+    const floorNumber = Number(item.floorNumber ?? item.floor);
+    const floorId = Number.isFinite(floorNumber) && buildingId ? floorMap.get(`${buildingId}:${floorNumber}`) : null;
+    const number = String(item.number || "").trim();
+    if (!buildingId || !floorId || !number) continue;
+
+    const values: any = {
+      surface: Number(item.surface || 0),
+      bedrooms: Number(item.bedrooms || 0),
+      bathrooms: Number(item.bathrooms || 0),
+      terrace: Number(item.terrace || 0),
+      price: Number(item.price || 0),
+      currency: ["USD","UYU","ARS","EUR"].includes(String(item.currency || "USD")) ? String(item.currency || "USD") : "USD",
+      status: ["AVAILABLE","RESERVED","SOLD","HIDDEN"].includes(String(item.status || "AVAILABLE")) ? String(item.status || "AVAILABLE") : "AVAILABLE",
+      description: String(item.description || ""),
+    };
+    for (const n of ["surface","bedrooms","bathrooms","terrace","price"]) {
+      if (!Number.isFinite(values[n]) || values[n] < 0) throw new Error(`Invalid AI unit value: ${n}`);
+    }
+
+    const existing = await db.from("units").select("id").eq("projectid", projectId)
+      .eq("floorid", floorId).eq("number", number).maybeSingle();
+    if (existing.error) throw existing.error;
+
+    if (existing.data) {
+      const updated = await db.from("units").update(values).eq("id", existing.data.id).eq("projectid", projectId).select().single();
+      if (updated.error) throw updated.error;
+    } else {
+      const inserted = await db.from("units").insert({
+        id: id(), projectid: projectId, buildingid: buildingId, floorid: floorId, number, ...values, createdat: now()
+      }).select().single();
+      if (inserted.error) throw inserted.error;
+    }
+  }
+
+  for (const item of amenities) {
+    const name = String(item.name || "").trim();
+    if (!name) continue;
+    const existing = await db.from("amenities").select("id").eq("projectid", projectId).ilike("name", name).maybeSingle();
+    if (existing.error) throw existing.error;
+    const values = { name, description: String(item.description || ""), category: String(item.category || "common") };
+    if (existing.data) {
+      const updated = await db.from("amenities").update(values).eq("id", existing.data.id).eq("projectid", projectId).select().single();
+      if (updated.error) throw updated.error;
+    } else {
+      const inserted = await db.from("amenities").insert({ id: id(), projectid: projectId, ...values, createdat: now() }).select().single();
+      if (inserted.error) throw inserted.error;
+    }
+  }
+
+  return { buildingsApplied: buildings.length, floorsApplied: floors.length, unitsApplied: units.length, amenitiesApplied: amenities.length };
 }
 
 Deno.serve(async (req) => {
@@ -279,6 +388,8 @@ Deno.serve(async (req) => {
         : job.extracted_data;
       if (!approvedData || typeof approvedData !== "object") return fail("extractedData is required for approval", 400);
 
+      const applied = await applyApprovedData(projectId, approvedData);
+
       const { data: updated, error } = await db.from("content_ingestion_jobs").update({
         status: "APPROVED",
         extracted_data: approvedData,
@@ -288,6 +399,7 @@ Deno.serve(async (req) => {
           ...(job.ai_metadata || {}),
           approvedBy: String(body.approvedBy || company.id),
           approvedAt: now(),
+          applied,
         },
       }).eq("id", jobId).eq("projectid", projectId).select().single();
       if (error) throw error;
@@ -326,7 +438,7 @@ Deno.serve(async (req) => {
         if (configError) throw configError;
       }
 
-      return json({ job: serializeJob(updated), experienceConfig: manifest });
+      return json({ job: serializeJob(updated), experienceConfig: manifest, applied });
     }
 
     return fail("Not found", 404);
