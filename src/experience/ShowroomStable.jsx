@@ -100,16 +100,23 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
   const [floor, setFloor] = useState('Todos');
   const [activeExperience, setActiveExperience] = useState('3D interactivo');
   const [remoteHeroImage, setRemoteHeroImage] = useState('');
+  const [remoteMedia, setRemoteMedia] = useState([]);
 
   useEffect(() => {
     if (heroImageUrl || project?.status !== 'PUBLISHED') {
       setRemoteHeroImage('');
+      setRemoteMedia([]);
       return;
     }
     let cancelled = false;
-    fetch(`${ASSET_API}/public/projects/${projectId}/hero`)
+    fetch(`${ASSET_API}/public/projects/${projectId}/media`)
       .then((r) => r.ok ? r.json() : null)
-      .then((payload) => { if (!cancelled) setRemoteHeroImage(payload?.url || ''); })
+      .then((payload) => {
+        if (cancelled) return;
+        const media = Array.isArray(payload?.media) ? payload.media : [];
+        setRemoteMedia(media);
+        setRemoteHeroImage(media.find((item) => item.kind === 'image' && item.isPrimary)?.url || media.find((item) => item.kind === 'image')?.url || '');
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [heroImageUrl, project?.status, projectId]);
@@ -157,6 +164,27 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
         <div className="experienceLead"><p className="stableEyebrow">DIGITAL PROPERTY EXPERIENCE</p><h2>Antes de comprar,<br /><i>vivila.</i></h2><p>El showroom transforma una ficha inmobiliaria en un recorrido completo: edificio, interiores, amenities, planos, inventario y ubicación.</p></div>
         <div className="experiencePanel"><div className="experienceTabs">{['3D interactivo', 'Interiores', 'Amenities', 'Ubicación'].map((item, i) => <button key={item} className={activeExperience === item ? 'active' : ''} onClick={() => setActiveExperience(item)}><span>0{i + 1}</span>{item}</button>)}</div><div className="experienceDetail"><small>EXPERIENCIA / {activeExperience.toUpperCase()}</small><h3>{activeExperience === '3D interactivo' ? 'Recorré la arquitectura.' : activeExperience === 'Interiores' ? 'Entrá antes de visitar.' : activeExperience === 'Amenities' ? 'Descubrí cómo se vive.' : 'Entendé dónde estás comprando.'}</h3><p>Una capa digital diseñada para reducir fricción comercial y darle al proyecto una presencia acorde a su valor.</p></div></div>
       </section>
+
+      {remoteMedia.some((item) => item.kind === 'image') && (
+        <section className="stableSection mediaGallery">
+          <div className="sectionTop"><div><p className="stableEyebrow">MATERIAL DEL PROYECTO</p><h2>Una primera<br /><i>mirada.</i></h2></div><p className="galleryHint">Los renders, imágenes y piezas que cargue la constructora aparecen acá automáticamente.</p></div>
+          <div className="galleryGrid">
+            {remoteMedia.filter((item) => item.kind === 'image').slice(0, 8).map((item, index) => (
+              <figure className={index === 0 ? 'galleryItem galleryItemLarge' : 'galleryItem'} key={item.id}>
+                <img src={item.url} alt={item.name || `${project.name} render ${index + 1}`} loading={index < 2 ? 'eager' : 'lazy'} />
+                <figcaption>{item.name || `Render ${index + 1}`}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {Array.isArray(project.amenities) && project.amenities.length > 0 && (
+        <section className="stableSection amenitiesSection">
+          <div><p className="stableEyebrow">AMENITIES</p><h2>Todo lo que<br /><i>lo completa.</i></h2></div>
+          <div className="amenitiesGrid">{project.amenities.map((amenity) => <article key={amenity.id}><span>{amenity.category || 'LIFESTYLE'}</span><h3>{amenity.name}</h3><p>{amenity.description || 'Una experiencia pensada para quienes habitan el proyecto.'}</p></article>)}</div>
+        </section>
+      )}
       <footer className="stableFooter"><span>{project.name.toUpperCase()}</span><span>{project.location?.city?.toUpperCase()} · {project.location?.country?.toUpperCase()}</span><span>SHOWROOM 01 / 01</span></footer>
     </main>
   );
