@@ -146,6 +146,21 @@ Deno.serve(async (req) => {
       return json(asset);
     }
 
+    if (path[0] === "assets" && path[1] && req.method === "DELETE") {
+      const assetId = path[1];
+      const { data: asset, error: assetError } = await db.from("assets").select("id,projectid,path").eq("id", assetId).maybeSingle();
+      if (assetError) throw assetError;
+      if (!asset) return fail("Asset not found", 404);
+      await ownProject(req, asset.projectid);
+      if (asset.path) {
+        const { error: storageError } = await db.storage.from("project-assets").remove([asset.path]);
+        if (storageError) throw storageError;
+      }
+      const { error: deleteError } = await db.from("assets").delete().eq("id", assetId).eq("projectid", asset.projectid);
+      if (deleteError) throw deleteError;
+      return json({ deleted: true, id: assetId });
+    }
+
     if (path[0] === "assets" && path[1] && path[2] === "signed-url" && req.method === "GET") {
       const { company } = await companyByKey(req.headers.get("x-api-key") || "") || {};
       if (!company) return fail("invalid api key", 401);
