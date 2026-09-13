@@ -72,6 +72,28 @@ Deno.serve(async (req) => {
     if (path[0] === "platform") {
       await platformAuth(req);
       if (path[1] === "companies" && path[2] && path[3] === "projects" && method === "GET") return json((await q("projects", { match: { companyid: path[2] } })).map(project));
+      if (path[1] === "companies" && path[2] && path[3] === "projects" && method === "POST") {
+        const companyId = path[2];
+        const { data: company } = await db.from("companies").select("id,status").eq("id", companyId).maybeSingle();
+        if (!company || company.status !== "ACTIVE") return json({ message: "Company not found or inactive" }, 404);
+        const body = await parse(req);
+        const name = String(body.name || "").trim();
+        const slug = slugify(body.slug || name);
+        if (name.length < 2 || name.length > 160) return json({ message: "project name is required" }, 400);
+        if (!slug) return json({ message: "project slug is required" }, 400);
+        const { data: duplicate } = await db.from("projects").select("id").eq("slug", slug).maybeSingle();
+        if (duplicate) return json({ message: "project slug already exists" }, 409);
+        const { data, error } = await db.from("projects").insert({
+          id:id(), companyid:companyId, name, slug,
+          description:String(body.description || "").slice(0,4000),
+          status:"DRAFT", location:body.location || null, branding:body.branding || null,
+          buildingreference:String(body.buildingReference || ""),
+          environmentconfig:body.environmentConfig || {}, publicationconfig:body.publicationConfig || {},
+          createdat:now()
+        }).select().single();
+        if(error) throw error;
+        return json(project(data),201);
+      }
       if (path[1] === "projects" && path[2]) {
         const pid = path[2];
         if (path[3] === "full" && method === "GET") {
