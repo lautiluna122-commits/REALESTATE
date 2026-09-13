@@ -23,12 +23,36 @@ export function hydratePublishedProject(payload) {
   const source = payload?.project;
   if (!source?.id) return null;
 
+  const rawBuildings = Array.isArray(payload.buildings) ? payload.buildings : [];
+  const rawFloors = Array.isArray(payload.floors) ? payload.floors : [];
+  const buildingById = new Map(rawBuildings.map((building) => [String(building.id), building]));
+  const floorById = new Map(rawFloors.map((floor) => [String(floor.id), floor]));
+
+  // The production API returns relational IDs (buildingId/floorId), while the
+  // showroom renderer works with the human-readable building/floor values.
+  // Normalize both API and local/demo shapes here so every published project
+  // follows the same contract.
+  const units = (Array.isArray(payload.units) ? payload.units : []).map((unit) => {
+    const floor = floorById.get(String(unit.floorId ?? unit.floorid ?? unit.floor?.id ?? ''));
+    const building = buildingById.get(String(unit.buildingId ?? unit.buildingid ?? unit.building?.id ?? ''));
+    return {
+      ...unit,
+      projectId: unit.projectId ?? unit.projectid ?? source.id,
+      buildingId: unit.buildingId ?? unit.buildingid ?? unit.building?.id ?? null,
+      floorId: unit.floorId ?? unit.floorid ?? unit.floor?.id ?? null,
+      building: unit.building ?? building?.name ?? building?.reference ?? '',
+      floor: unit.floor ?? floor?.number ?? unit.floorNumber ?? null,
+      status: unit.status ?? 'AVAILABLE',
+      images: Array.isArray(unit.images) ? unit.images : [],
+    };
+  });
+
   const project = {
     ...source,
     publication: payload.publication ?? source.publicationConfig ?? null,
-    buildings: Array.isArray(payload.buildings) ? payload.buildings : [],
-    floors: Array.isArray(payload.floors) ? payload.floors : [],
-    units: Array.isArray(payload.units) ? payload.units : [],
+    buildings: rawBuildings,
+    floors: rawFloors,
+    units,
     plans: Array.isArray(payload.plans) ? payload.plans : [],
     amenities: Array.isArray(payload.amenities) ? payload.amenities : [],
     assets: Array.isArray(payload.assets) ? payload.assets : [],
