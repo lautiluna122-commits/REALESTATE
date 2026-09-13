@@ -78,7 +78,7 @@ function Landscape({ night }) {
 
 function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cameraMode }) {
   return (
-    <Canvas shadows dpr={[1, 1.5]} camera={{ position: cameraMode === 'front' ? [0, 15, 48] : cameraMode === 'top' ? [0, 62, 12] : [39, 20, 44], fov: cameraMode === 'top' ? 42 : 34 }} gl={{ antialias: true, powerPreference: 'high-performance' }} style={{ width: '100%', height: '100%' }}>
+    <Canvas key={cameraMode} shadows dpr={[1, 1.5]} camera={{ position: cameraMode === 'front' ? [0, 15, 48] : cameraMode === 'top' ? [0, 62, 12] : [39, 20, 44], fov: cameraMode === 'top' ? 42 : 34 }} gl={{ antialias: true, powerPreference: 'high-performance' }} style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={[night ? '#071316' : '#9dbdc0']} />
       <fog attach="fog" args={[night ? '#071316' : '#a9c5c5', 48, 125]} />
       <hemisphereLight intensity={night ? .55 : 1.55} groundColor={night ? '#101c1e' : '#66796e'} color={night ? '#8faeb4' : '#fffaf2'} />
