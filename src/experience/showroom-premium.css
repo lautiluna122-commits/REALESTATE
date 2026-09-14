@@ -12,7 +12,7 @@
 .showroom3dControls button{border:1px solid rgba(255,255,255,.18);background:rgba(5,10,14,.76);backdrop-filter:blur(14px);color:#f4efe8;border-radius:999px;padding:8px 12px;font-size:11px;letter-spacing:.06em;cursor:pointer}
 .showroom3dControls button:hover,.showroom3dControls button.active{background:#f4efe8;color:#0a1014;border-color:#f4efe8}
 .showroom3dControls small{color:rgba(255,255,255,.72);font-size:10px;letter-spacing:.03em;text-shadow:0 1px 10px #000}
-.virtualShowroomCallout{display:grid;grid-template-columns:1.25fr .75fr;gap:48px;padding:42px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(135deg,rgba(255,255,255,.045),rgba(255,255,255,.015));border-radius:24px}
+.virtualShowroomCallout{grid-column:1/-1;display:grid;grid-template-columns:1.25fr .75fr;gap:48px;padding:42px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(135deg,rgba(255,255,255,.045),rgba(255,255,255,.015));border-radius:24px}
 .virtualShowroomCallout h2{font-size:clamp(34px,4vw,62px);line-height:.95;margin:12px 0 18px}
 .virtualShowroomCallout p{max-width:640px;color:rgba(255,255,255,.68);line-height:1.7}
 .virtualSteps{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:center}
