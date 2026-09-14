@@ -3,9 +3,9 @@ import { getProjectById, getProjectUnits } from '../platform/projectRegistry';
 
 const API = import.meta.env.VITE_API_BASE_URL || `${import.meta.env.VITE_SUPABASE_URL || ''}/functions/v1/realestate-api`;
 
-export default function LeadCapture({ projectId }) {
-  const project = getProjectById(projectId);
-  const units = getProjectUnits(projectId);
+export default function LeadCapture({ projectId, projectData = null, unitsData = null }) {
+  const project = projectData || getProjectById(projectId);
+  const units = unitsData ?? (project ? getProjectUnits(projectId) : []);
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
