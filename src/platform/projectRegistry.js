@@ -56,6 +56,7 @@ export function hydratePublishedProject(payload) {
     plans: Array.isArray(payload.plans) ? payload.plans : [],
     amenities: Array.isArray(payload.amenities) ? payload.amenities : [],
     assets: Array.isArray(payload.assets) ? payload.assets : [],
+    experience: payload.experience ?? null,
     location: payload.location ?? source.location ?? null,
     config: source.environmentConfig ?? source.config ?? {},
   };
