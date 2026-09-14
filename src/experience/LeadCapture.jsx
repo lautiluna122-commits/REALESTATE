@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { getProjectById, getProjectUnits } from '../platform/projectRegistry';
 
+const API = import.meta.env.VITE_API_BASE_URL || `${import.meta.env.VITE_SUPABASE_URL || ''}/functions/v1/realestate-api`;
+
 export default function LeadCapture({ projectId }) {
   const project = getProjectById(projectId);
   const units = getProjectUnits(projectId);
@@ -13,7 +15,7 @@ export default function LeadCapture({ projectId }) {
     event.preventDefault();
     setBusy(true);
     try {
-      const response = await fetch(`/api/projects/${project.id}/leads`, {
+      const response = await fetch(`${API}/projects/${project.id}/leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, unitId: form.unitId || null }),
