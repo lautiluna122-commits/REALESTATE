@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import './admin.css';
 import ProjectBuilder from './ProjectBuilder';
-const API = import.meta.env.VITE_API_BASE_URL || '/api';
+const API = import.meta.env.VITE_API_BASE_URL || `${import.meta.env.VITE_SUPABASE_URL || ''}/functions/v1/realestate-api`;
 const request=async(path,options={})=>{const r=await fetch(`${API}${path}`,options);const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||`Error ${r.status}`);return d};
 const json=(method,body,headers)=>({method,headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
 const Field=({label,...p})=><label className="adminField"><span>{label}</span><input {...p}/></label>;
