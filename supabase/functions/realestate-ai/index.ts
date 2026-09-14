@@ -9,7 +9,7 @@ const db = createClient(supabaseUrl, secretKey);
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-api-key, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-api-key, x-platform-key, x-share-token, content-type",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
 };
 
@@ -30,23 +30,50 @@ async function companyByKey(key: string) {
   return data;
 }
 
-async function ownProject(req: Request, projectId: string) {
-  const company = await companyByKey(req.headers.get("x-api-key") || "");
-  if (!company || company.status !== "ACTIVE") {
-    throw Object.assign(new Error("invalid api key"), { status: 401 });
-  }
+async function platformAuth(req: Request) {
+  const supplied = req.headers.get("x-platform-key") || "";
+  if (!supplied) return false;
+  const configured = Deno.env.get("PLATFORM_API_KEY") || secretKeys.platform || "";
+  if (configured && supplied === configured) return true;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(supplied));
+  const hash = Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  const { data, error } = await db.from("platform_access").select("id").eq("password_hash", hash).eq("status","ACTIVE").maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
 
-  const { data: project, error } = await db
-    .from("projects")
-    .select("id,companyid,name")
-    .eq("id", projectId)
-    .maybeSingle();
+async function accessByToken(token: string) {
+  if (!token) return null;
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  const tokenhash = Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  const { data, error } = await db.from("project_access_links").select("*").eq("tokenhash", tokenhash).eq("status","ACTIVE").maybeSingle();
+  if (error) throw error;
+  if (!data || (data.expiresat && new Date(data.expiresat) <= new Date())) return null;
+  return data;
+}
+
+async function ownProject(req: Request, projectId: string) {
+  const { data: project, error } = await db.from("projects").select("id,companyid,name").eq("id", projectId).maybeSingle();
   if (error) throw error;
   if (!project) throw Object.assign(new Error("Project not found"), { status: 404 });
-  if (String(project.companyid) !== String(company.id)) {
-    throw Object.assign(new Error("project access denied"), { status: 403 });
+
+  const share = await accessByToken(req.headers.get("x-share-token") || "");
+  if (share) {
+    if (String(share.projectid) !== String(projectId)) throw Object.assign(new Error("share link is scoped to another project"), { status: 403 });
+    const { data: company } = await db.from("companies").select("id,name,status").eq("id", project.companyid).maybeSingle();
+    if (!company || company.status !== "ACTIVE") throw Object.assign(new Error("project access denied"), { status: 403 });
+    return { company, project, share };
   }
-  return { company, project };
+
+  const company = await companyByKey(req.headers.get("x-api-key") || "");
+  if (company && company.status === "ACTIVE" && String(project.companyid) === String(company.id)) return { company, project };
+
+  if (await platformAuth(req)) {
+    const { data: platformCompany } = await db.from("companies").select("id,name,status").eq("id", project.companyid).maybeSingle();
+    return { company: platformCompany || { id: project.companyid, name: "Platform", status: "ACTIVE" }, project, platform: true };
+  }
+
+  throw Object.assign(new Error("project access denied"), { status: 401 });
 }
 
 function serializeJob(row: any) {
