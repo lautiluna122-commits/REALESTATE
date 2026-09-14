@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { Gltf, OrbitControls } from '@react-three/drei';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getProjectById, getProjectUnits } from '../platform/projectRegistry';
 import { STATUS_LABELS, UNIT_STATUS } from '../domain/platformModels';
@@ -76,7 +76,7 @@ function Landscape({ night }) {
   );
 }
 
-function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cameraMode }) {
+function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cameraMode, modelUrl }) {
   return (
     <Canvas key={cameraMode} shadows dpr={[1, 1.5]} camera={{ position: cameraMode === 'front' ? [0, 15, 48] : cameraMode === 'top' ? [0, 62, 12] : [39, 20, 44], fov: cameraMode === 'top' ? 42 : 34 }} gl={{ antialias: true, powerPreference: 'high-performance' }} style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={[night ? '#071316' : '#9dbdc0']} />
@@ -85,7 +85,7 @@ function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cam
       <directionalLight position={[-24, 38, 22]} intensity={night ? 1.8 : 4.5} castShadow shadow-mapSize={[2048, 2048]} />
       <directionalLight position={[24, 16, -16]} intensity={night ? .75 : 1.1} />
       <Landscape night={night} />
-      <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />
+      {modelUrl ? <Gltf src={modelUrl} position={[0, -1, 0]} scale={1} castShadow receiveShadow /> : <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />}
       <OrbitControls enableDamping dampingFactor={.055} minDistance={15} maxDistance={78} minPolarAngle={0.38} maxPolarAngle={Math.PI / 2.02} target={[0, focusFloor ? focusFloor * 2.35 : 13, 4]} />
     </Canvas>
   );
@@ -103,11 +103,13 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
   const [activeExperience, setActiveExperience] = useState('3D interactivo');
   const [remoteHeroImage, setRemoteHeroImage] = useState('');
   const [remoteMedia, setRemoteMedia] = useState([]);
+  const [remoteModelUrl, setRemoteModelUrl] = useState('');
 
   useEffect(() => {
     if (heroImageUrl || project?.status !== 'PUBLISHED') {
       setRemoteHeroImage('');
       setRemoteMedia([]);
+      setRemoteModelUrl('');
       return;
     }
     let cancelled = false;
@@ -118,6 +120,7 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
         const media = Array.isArray(payload?.media) ? payload.media : [];
         setRemoteMedia(media);
         setRemoteHeroImage(media.find((item) => item.kind === 'image' && item.isPrimary)?.url || media.find((item) => item.kind === 'image')?.url || '');
+        setRemoteModelUrl(media.find((item) => item.kind === 'model' || String(item.mimetype || '').includes('gltf'))?.url || '');
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -134,7 +137,7 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
       <section className={`stableHero ${resolvedHeroImage ? 'hasHeroImage' : ''}`}>
         {resolvedHeroImage && <div className="stableHeroImage" style={{ backgroundImage: `url("${resolvedHeroImage}")` }} aria-label={`${project.name} render`} />}
         <div className="stableCanvas">
-          <Scene units={units} floorNumbers={floorNumbers} selected={selected} onSelect={setSelected} night={night} focusFloor={focusFloor} cameraMode={cameraMode} />
+          <Scene units={units} floorNumbers={floorNumbers} selected={selected} onSelect={setSelected} night={night} focusFloor={focusFloor} cameraMode={cameraMode} modelUrl={remoteModelUrl} />
           <div className="showroom3dControls" aria-label="Controles del showroom 3D">
             <div className="showroom3dModes">
               <button className={cameraMode === 'orbit' ? 'active' : ''} onClick={() => setCameraMode('orbit')}>3D</button>
