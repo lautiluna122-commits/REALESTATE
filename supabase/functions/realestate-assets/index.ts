@@ -198,13 +198,10 @@ Deno.serve(async (req) => {
     }
 
     if (path[0] === "assets" && path[1] && path[2] === "signed-url" && req.method === "GET") {
-      const { company } = await companyByKey(req.headers.get("x-api-key") || "") || {};
-      if (!company) return fail("invalid api key", 401);
       const { data: asset, error } = await db.from("assets").select("*").eq("id", path[1]).maybeSingle();
       if (error) throw error;
       if (!asset) return fail("Asset not found", 404);
-      const { data: project } = await db.from("projects").select("id,companyid").eq("id", asset.projectid).maybeSingle();
-      if (!project || String(project.companyid) !== String(company.id)) return fail("asset access denied", 403);
+      await ownProject(req, asset.projectid);
       const expires = Math.min(Math.max(Number(url.searchParams.get("expires") || 3600), 60), 86400);
       const { data, error: signedError } = await db.storage.from("project-assets").createSignedUrl(asset.path, expires);
       if (signedError) throw signedError;
