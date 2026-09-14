@@ -120,7 +120,7 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
         const media = Array.isArray(payload?.media) ? payload.media : [];
         setRemoteMedia(media);
         setRemoteHeroImage(media.find((item) => item.kind === 'image' && item.isPrimary)?.url || media.find((item) => item.kind === 'image')?.url || '');
-        setRemoteModelUrl(media.find((item) => item.kind === 'model' || String(item.mimetype || '').includes('gltf'))?.url || '');
+        setRemoteModelUrl(media.find((item) => ['model','glb','gltf','3d'].includes(String(item.kind || '').toLowerCase()) || /gltf|glb|model\/gltf/i.test(String(item.mimetype || '')))?.url || '');
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -153,7 +153,7 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
         </div>
         <div className="stableAtmosphere" />
         <header className="stableNav">
-          <div className="stableBrand"><span>OM</span><div><b>{project.name.toUpperCase()}</b><small>{project.location?.city?.toUpperCase()} · {project.location?.district?.toUpperCase()}</small></div></div>
+          <div className="stableBrand"><span>{String(project.name || 'RE').split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</span><div><b>{project.name.toUpperCase()}</b><small>{project.location?.city?.toUpperCase()} · {project.location?.district?.toUpperCase()}</small></div></div>
           <nav><a href="#proyecto">Proyecto</a><a href="#unidades">Unidades</a><a href="#experiencia">Experiencia</a></nav>
           <button className="modeButton" onClick={() => setNight((v) => !v)}><span>{night ? '☼' : '◐'}</span>{night ? 'Día' : 'Noche'}</button>
         </header>
@@ -165,7 +165,7 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
           <div className="stableButtons"><a href="#unidades">Ver unidades <span>↗</span></a><a className="ghost" href="#experiencia">Explorar proyecto <span>↓</span></a></div>
         </div>
         <div className="heroLocation"><span>{project.location?.district || project.location?.city}</span><b>—</b><span>{project.location?.country}</span></div>
-        <div className="stableStats"><span><b>{buildingHeight}</b>Pisos</span><span><b>{units.length}</b>Unidades</span><span><b>{available}</b>Disponibles</span><span><b>2027</b>Entrega</span></div>
+        <div className="stableStats"><span><b>{buildingHeight}</b>Pisos</span><span><b>{units.length}</b>Unidades</span><span><b>{available}</b>Disponibles</span><span><b>{project.environmentConfig?.deliveryYear || project.config?.deliveryYear || project.publication?.deliveryYear || '—'}</b>Entrega</span></div>
         {selected && <aside className="stableCard"><button onClick={() => setSelected(null)}>×</button><small>UNIDAD {selected.number} · PISO {selected.floor}</small><h2>{statusLabel(selected.status)}</h2><p>{selected.surface} m² · {selected.bedrooms} dormitorios</p><strong>{selected.currency === 'USD' ? 'US$' : selected.currency} {Number(selected.price || 0).toLocaleString('en-US')}</strong><a href="#unidades">Consultar unidad <span>↗</span></a></aside>}
       </section>
 
