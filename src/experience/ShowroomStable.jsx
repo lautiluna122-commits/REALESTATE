@@ -91,9 +91,9 @@ function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cam
   );
 }
 
-export default function ShowroomStable({ projectId = 'ocean-mansions', heroImageUrl = '' }) {
-  const project = getProjectById(projectId);
-  const units = useMemo(() => getProjectUnits(projectId), [projectId]);
+export default function ShowroomStable({ projectId = 'ocean-mansions', heroImageUrl = '', projectData = null, unitsData = null }) {
+  const project = projectData || getProjectById(projectId);
+  const units = useMemo(() => unitsData ?? (project ? getProjectUnits(projectId) : []), [project, projectId, unitsData]);
   const floorNumbers = useMemo(() => [...new Set(units.map((unit) => Number(unit.floor)).filter(Number.isFinite))].sort((a, b) => a - b), [units]);
   const [selected, setSelected] = useState(null);
   const [focusFloor, setFocusFloor] = useState(null);
