@@ -85,7 +85,7 @@ function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cam
       <directionalLight position={[-24, 38, 22]} intensity={night ? 1.8 : 4.5} castShadow shadow-mapSize={[2048, 2048]} />
       <directionalLight position={[24, 16, -16]} intensity={night ? .75 : 1.1} />
       <Landscape night={night} />
-      {modelUrl ? <><Gltf src={modelUrl} position={modelPosition} rotation={modelRotation} scale={modelScale} castShadow receiveShadow />{units.map((unit, index) => { const floorIndex = Math.max(0, Number(unit.floor || 1) - 1); const x = ((index % 4) - 1.5) * 1.8; const y = floorIndex * 2.35 + 1.2; const z = 2.8; return <mesh key={unit.id || unit.number || index} position={[x, y, z]} onClick={(event) => { event.stopPropagation(); onSelect(unit); }}><sphereGeometry args={[0.13, 12, 12]} /><meshStandardMaterial transparent opacity={selected?.id === unit.id ? 1 : 0.65} /></mesh>; })}</> : <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />}
+      {modelUrl ? <><Gltf src={modelUrl} position={modelPosition} rotation={modelRotation} scale={modelScale} castShadow receiveShadow />{units.map((unit, index) => { const floorIndex = Math.max(0, Number(unit.floor || 1) - 1); const configured = hotspotConfig[unit.id] || hotspotConfig[unit.number]; const position = Array.isArray(configured) ? configured : (configured?.position || [((index % 4) - 1.5) * 1.8, floorIndex * 2.35 + 1.2, 2.8]); return <mesh key={unit.id || unit.number || index} position={position} onClick={(event) => { event.stopPropagation(); onSelect(unit); }}><sphereGeometry args={[0.16, 12, 12]} /><meshStandardMaterial transparent opacity={selected?.id === unit.id ? 1 : 0.65} /></mesh>; })}</> : <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />}
       <OrbitControls enableDamping dampingFactor={.055} minDistance={15} maxDistance={78} minPolarAngle={0.38} maxPolarAngle={Math.PI / 2.02} target={[0, focusFloor ? focusFloor * 2.35 : 13, 4]} />
     </Canvas>
   );
@@ -131,6 +131,7 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
   const resolvedHeroImage = heroImageUrl || remoteHeroImage;
   const experience = project.experience || project.experienceConfig || project.config?.experience || {};
   const modelTransform = experience.model || experience.model3d || {};
+  const hotspotConfig = experience.hotspots || experience.unitHotspots || {};
   const modelScale = Number(modelTransform.scale || 1);
   const modelPosition = Array.isArray(modelTransform.position) ? modelTransform.position : [0, -1, 0];
   const modelRotation = Array.isArray(modelTransform.rotation) ? modelTransform.rotation : [0, 0, 0];
