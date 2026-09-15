@@ -76,7 +76,7 @@ function Landscape({ night }) {
   );
 }
 
-function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cameraMode, modelUrl }) {
+function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cameraMode, modelUrl, modelScale = 1, modelPosition = [0, -1, 0], modelRotation = [0, 0, 0] }) {
   return (
     <Canvas key={cameraMode} shadows dpr={[1, 1.5]} camera={{ position: cameraMode === 'front' ? [0, 15, 48] : cameraMode === 'top' ? [0, 62, 12] : [39, 20, 44], fov: cameraMode === 'top' ? 42 : 34 }} gl={{ antialias: true, powerPreference: 'high-performance' }} style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={[night ? '#071316' : '#9dbdc0']} />
@@ -85,7 +85,7 @@ function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cam
       <directionalLight position={[-24, 38, 22]} intensity={night ? 1.8 : 4.5} castShadow shadow-mapSize={[2048, 2048]} />
       <directionalLight position={[24, 16, -16]} intensity={night ? .75 : 1.1} />
       <Landscape night={night} />
-      {modelUrl ? <Gltf src={modelUrl} position={[0, -1, 0]} scale={1} castShadow receiveShadow /> : <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />}
+      {modelUrl ? <Gltf src={modelUrl} position={modelPosition} rotation={modelRotation} scale={modelScale} castShadow receiveShadow /> : <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />}
       <OrbitControls enableDamping dampingFactor={.055} minDistance={15} maxDistance={78} minPolarAngle={0.38} maxPolarAngle={Math.PI / 2.02} target={[0, focusFloor ? focusFloor * 2.35 : 13, 4]} />
     </Canvas>
   );
@@ -129,6 +129,11 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
   const available = units.filter((u) => u.status === UNIT_STATUS.AVAILABLE).length;
   const buildingHeight = floorNumbers.length;
   const resolvedHeroImage = heroImageUrl || remoteHeroImage;
+  const experience = project.experience || project.experienceConfig || project.config?.experience || {};
+  const modelTransform = experience.model || experience.model3d || {};
+  const modelScale = Number(modelTransform.scale || 1);
+  const modelPosition = Array.isArray(modelTransform.position) ? modelTransform.position : [0, -1, 0];
+  const modelRotation = Array.isArray(modelTransform.rotation) ? modelTransform.rotation : [0, 0, 0];
 
   if (!project) return null;
 
