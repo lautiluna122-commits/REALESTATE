@@ -85,7 +85,7 @@ function Scene({ units, floorNumbers, selected, onSelect, night, focusFloor, cam
       <directionalLight position={[-24, 38, 22]} intensity={night ? 1.8 : 4.5} castShadow shadow-mapSize={[2048, 2048]} />
       <directionalLight position={[24, 16, -16]} intensity={night ? .75 : 1.1} />
       <Landscape night={night} />
-      {modelUrl ? <Gltf src={modelUrl} position={modelPosition} rotation={modelRotation} scale={modelScale} castShadow receiveShadow /> : <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />}
+      {modelUrl ? <><Gltf src={modelUrl} position={modelPosition} rotation={modelRotation} scale={modelScale} castShadow receiveShadow />{units.map((unit, index) => { const floorIndex = Math.max(0, Number(unit.floor || 1) - 1); const x = ((index % 4) - 1.5) * 1.8; const y = floorIndex * 2.35 + 1.2; const z = 2.8; return <mesh key={unit.id || unit.number || index} position={[x, y, z]} onClick={(event) => { event.stopPropagation(); onSelect(unit); }}><sphereGeometry args={[0.13, 12, 12]} /><meshStandardMaterial transparent opacity={selected?.id === unit.id ? 1 : 0.65} /></mesh>; })}</> : <Tower units={units} floorNumbers={floorNumbers} selected={selected} onSelect={onSelect} night={night} />}
       <OrbitControls enableDamping dampingFactor={.055} minDistance={15} maxDistance={78} minPolarAngle={0.38} maxPolarAngle={Math.PI / 2.02} target={[0, focusFloor ? focusFloor * 2.35 : 13, 4]} />
     </Canvas>
   );
@@ -142,7 +142,7 @@ export default function ShowroomStable({ projectId = 'ocean-mansions', heroImage
       <section className={`stableHero ${resolvedHeroImage ? 'hasHeroImage' : ''}`}>
         {resolvedHeroImage && <div className="stableHeroImage" style={{ backgroundImage: `url("${resolvedHeroImage}")` }} aria-label={`${project.name} render`} />}
         <div className="stableCanvas">
-          <Scene units={units} floorNumbers={floorNumbers} selected={selected} onSelect={setSelected} night={night} focusFloor={focusFloor} cameraMode={cameraMode} modelUrl={remoteModelUrl} />
+          <Scene units={units} floorNumbers={floorNumbers} selected={selected} onSelect={setSelected} night={night} focusFloor={focusFloor} cameraMode={cameraMode} modelUrl={remoteModelUrl} modelScale={modelScale} modelPosition={modelPosition} modelRotation={modelRotation} />
           <div className="showroom3dControls" aria-label="Controles del showroom 3D">
             <div className="showroom3dModes">
               <button className={cameraMode === 'orbit' ? 'active' : ''} onClick={() => setCameraMode('orbit')}>3D</button>
